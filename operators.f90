@@ -286,10 +286,10 @@ module operators
       enddo ! SlaterIp 
     enddo ! Slater I
     
-    print *, "MVee is : "
-    do i=1,NnucOrb*NSlater
-      print *, MVee(i,:)
-    enddo
+    !print *, "MVee is : "
+    !do i=1,NnucOrb*NSlater
+    !  print *, MVee(i,:)
+    !enddo
 
     
   end subroutine setOperators   
