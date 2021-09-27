@@ -6,7 +6,7 @@ module modSlaterIndex
   !TODO: rewrite to match complete OOP standard
   type SlaterIndex
     integer, dimension(:), allocatable  ::  spinOrbitals
-    integer, dimension(:), allocatable  ::  spatialOrbitals
+    integer, dimension(:), allocatable  ::  spaceOrbitals
   end type SlaterIndex
 
   interface SlaterIndex
@@ -20,33 +20,33 @@ module modSlaterIndex
     integer                           ::  i, Ne
     Ne = size(spinOrbitals)
     allocate(initSlater%spinOrbitals(Ne))
-    allocate(initSlater%spatialOrbitals(Ne))
+    allocate(initSlater%spaceOrbitals(Ne))
     
     initSlater%spinOrbitals = spinOrbitals
     do i=1,Ne
-      initSlater%spatialOrbitals(i) = ceiling(spinOrbitals(i)/2.0)
+      initSlater%spaceOrbitals(i) = ceiling(spinOrbitals(i)/2.0)
     end do
 
   end function initSlater
 
   subroutine SlaterMaximumCoincidence(slaterIndices, slaterI, slaterIp, Nele, sgn, &
-                                      numDiffering, spaceOrbI1, spaceOrbI2, spaceOrbIp1, spaceOrbIp2)
-    type(SlaterIndex), dimension(:),intent(in)  ::  slaterIndices
+                                      numDiffering, spinOrbI1, spinOrbI2, spinOrbIp1, spinOrbIp2)
+    type(SlaterIndex),   intent(in)             ::  slaterIndices(:)
     integer,           intent(in)               ::  Nele, slaterI, slaterIp
-    integer,           intent(out)              ::  sgn, numDiffering, spaceOrbI1, spaceOrbI2, spaceOrbIp1, spaceOrbIp2
+    integer,           intent(out)              ::  sgn, numDiffering, spinOrbI1, spinOrbI2, spinOrbIp1, spinOrbIp2
     integer                                     ::  i, indexLocation, numMatching
     logical                                     ::  firstDiff
     integer, dimension(:), allocatable          ::  spaceOrbIp, spinOrbIp, spaceOrbI, spinOrbI, tmpSpin
 
     allocate(spinOrbI(Nele))
-    allocate(spaceOrbI(Nele))
+    !allocate(spaceOrbI(Nele))
     allocate(spinOrbIp(Nele))
-    allocate(spaceOrbIp(Nele))
+    !allocate(spaceOrbIp(Nele))
     allocate(tmpSpin(Nele))
     spinOrbI    =   slaterIndices(slaterI)%spinOrbitals;
-    spaceOrbI   =   slaterIndices(slaterI)%spatialOrbitals;
+    !spaceOrbI   =   slaterIndices(slaterI)%spaceOrbitals;
     spinOrbIp   =   slaterIndices(slaterIp)%spinOrbitals;
-    spaceOrbIp  =   slaterIndices(slaterIp)%spatialOrbitals;
+    !spaceOrbIp  =   slaterIndices(slaterIp)%spaceOrbitals;
 
 
     ! scan through slaterIp to see by how many spin indices it differs from slaterI
@@ -94,18 +94,18 @@ module modSlaterIndex
       do i=1, Nele
         if ((tmpSpin(i) .ne. 0)  .and. (firstDiff .eqv. .true.)) then
 
-          spaceOrbI1 = spaceOrbI(i)
+          spinOrbI1 = spinOrbI(i)
           ! find the spin orbital in slater Ip
           indexLocation = findloc(spinOrbIp, tmpSpin(i) + spinOrbI(i),1)
-          spaceOrbIp1 = spaceOrbIp(indexLocation)
+          spinOrbIp1 = spinOrbIp(indexLocation)
 
           firstDiff=.false.
         elseif ((tmpSpin(i) .ne. 0)  .and. (firstDiff .eqv. .false.)) then
           
-          spaceOrbI2 = spaceOrbI(i)
+          spinOrbI2 = spinOrbI(i)
           ! find the spin orbital in slater Ip
           indexLocation = findloc(spinOrbIp, tmpSpin(i) + spinOrbI(i),1)
-          spaceOrbIp2 = spaceOrbIp(indexLocation)
+          spinOrbIp2 = spinOrbIp(indexLocation)
            
         endif
       enddo
@@ -118,10 +118,10 @@ module modSlaterIndex
       
     else
       sgn=0
-      spaceOrbI1 = 0
-      spaceOrbI2 = 0
-      spaceOrbIp1 = 0
-      spaceOrbIp2 = 0
+      spinOrbI1 = 0
+      spinOrbI2 = 0
+      spinOrbIp1 = 0
+      spinOrbIp2 = 0
 
     endif
 

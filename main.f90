@@ -3,12 +3,10 @@ program icwf
   use operators
 
   implicit none
-  integer     :: i
-  
 
   call assignConsts()
 
-  !call setOperators()
+  call setOperators()
 
   
 

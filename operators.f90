@@ -1,8 +1,8 @@
 module operators
   use params, only          : mu_n, dxn, nDim, Nele, NeleSpinOrb, NSlater, NeleSpatialOrb, &
-                              NnucOrb, nAxis, CITruncation, slaterIndices
+                              NnucOrb, nAxis, CITruncation, slaterIndices, debug
   use bases, only           : diagSymMatrix
-  use modSlaterIndex, only  : SlaterIndex
+  use modSlaterIndex, only  : SlaterIndex, SlaterMaximumCoincidence
 
   implicit none (type, external)
   external  :: ssyev, sgemm, sgeev, ssyevr, amux
@@ -13,74 +13,44 @@ module operators
 
   contains
 
+  ! TODO: Naming convention here is a bit shit
+  !       replace spaceInd / spinInd with spaceOrb
+  !       change name of dSpaceOrbI1 potentially
   subroutine setOperators()
-    real, dimension(:), allocatable             :: eigenVals, work, iwork
-    integer, dimension(:), allocatable          :: isuppz, spaceIndI, spinIndI, nucRange, &
-                                                   slaterIJ, slaterIpJp, spaceIndIp, spinIndIp
-    real, dimension(:,:), allocatable           ::  nLapl, Tn, chi, Vnn, KTn, KVnn, &
+    integer, dimension(:), allocatable          :: isuppz, spaceOrbsI, spinOrbsI, nucRange, &
+                                                   slaterIJ, slaterIpJp, spaceOrbsIp, spinOrbsIp
+    real, dimension(:,:), allocatable           ::  chi, Tn, nLapl, Vnn, KTn, KVnn, &
                                                     IdN, KTe, KVee, MTn, MTe, MVee, &
-                                                    MVen, MVnn, tmpMat
+                                                    MVen, MVnn, tmpMat1, tmpMat2, tmpMat
     real, dimension(:,:,:), allocatable         ::  KVen
-    real, dimension(:), allocatable     ::  tmpVec
-    real                                ::  MTeVal=0, MVeeVal =0, rval
+    real, dimension(:), allocatable             ::  eigenVals
+    real                                ::  MTeVal=0, MVeeVal =0, rval, tmpVal1, tmpVal2
     integer                             ::  i, j, k, l, m, n, o, p, lwork, info, slaterIpIp, &
-                                            NIJ, il, iu, vl, vu, Ri
-    integer                             ::  ii, ij, ji, jj, slaterI, slaterIp, slaterJ, slaterJp
-    integer                             ::  TeFile, VeeFile, VenFile, sizeFile
+                                            NIJ, il, iu, vl, vu, Ri, ii, ij, ji, jj, &
+                                            slaterI, slaterIp, slaterJ, slaterJp, &
+                                            TeFile, VeeFile, VenFile, sizeFile, sgn, indexLocation, &
+                                            numDiffering, dSpaceOrbI1, dSpaceOrbI2, dSpaceOrbIp1, &
+                                            dSpaceOrbIp2, &
+                                            im_im, in_in, im_in, in_im, im_ip, in_ip, in_iq, im_iq, &
+                                            dSpinOrbI1, dSpinOrbIp1, dSpinOrbI2, dSpinOrbIp2
     logical                             ::  continueReading = .true.
-    complex                             ::  zval
+    complex                            :: zval
     character(len=256)           ::  filepath
 
-    allocate(nLapl(nDim,nDim))
-    nLapl = 0
+
+    !TODO: check if rearranged nuclear set up here still agrees with matlab
+    !>>> Set Nuclear Operators <<<!
     allocate(Tn(nDim,nDim))
-    Tn = 0
-    allocate(tmpVec(nDim))
-    tmpVec = 0
-    allocate(tmpMat(nDim,nNucOrb))
-    tmpMat = 0
- 
-    do i = 1,nDim
-      nLapl(i,i) = -73766.0/25200.0
-      if (i < nDim) then 
-        nLapl(i,i+1) = 5.0/3.0
-      endif
-      if (i > 1) then
-          nLapl(i,i-1) = ( 5.0/3.0)
-      endif
-      if (i < (nDim - 1)) then
-          nLapl(i,i+2) = ( -5.0/21.0)
-      endif
-      if (i > 2) then
-          nLapl(i,i-2) = ( -5.0/21.0)
-      endif
-      if (i < (nDim - 2)) then
-          nLapl(i,i+3) = ( 5.0/126.0)
-      endif
-      if (i > 3) then
-          nLapl(i,i-3) = ( 5.0/126.0)
-      endif
-    if (i < (nDim - 3)) then
-          nLapl(i,i+4) = ( -5.0/1008.0)
-      endif
-      if (i > 4) then
-          nLapl(i,i-4) = ( -5.0/1008.0)
-      endif
-      if (i < (nDim - 4)) then
-          nLapl(i,i+5) = ( +1.0/3150.0)
-      endif
-      if (i > 5) then
-          nLapl(i,i-5) = ( +1.0/3150.0)
-      endif    
-    enddo
- 
-    Tn = -(1/(2*dxn**2*mu_n))*nLapl
-  
-    !!!!!!!!!!!!!!!!!!!!! Nuclear Basis   !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    allocate(chi(nDim,nNucOrb))
-    chi=0
+    Tn=0
+    allocate(nLapl(nDim,nDim))
+    nLapl=0
+    call setNuclearOperators(Tn,nLapl)
+
+    !>>> Set Nuclear Basis <<<!
     allocate(eigenVals(nNucOrb))
     eigenVals=0
+    allocate(chi(nDim,nNucOrb))
+    chi = 0
     call diagSymMatrix(Tn, nNucOrb, eigenVals, chi) 
     
     Tn = -(1/(2*dxn**2*mu_n))*nLapl
@@ -102,6 +72,9 @@ module operators
     do i = 1, nDim 
       Vnn(i,i) = 1.0/nAxis(i)
     end do
+
+    allocate(tmpMat(nDim,NnucOrb))
+    tmpMat = 0
     !Calculate Vnn Matrix 
     call sgemm('N', 'N', nDim, nNucOrb, nDim, 1.0, Vnn, nDim, chi, nDim, 0, tmpMat, nDim)
     
@@ -117,35 +90,16 @@ module operators
 
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Load Electronic Information !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !TODO: Replace all of these with sparse reads
  
     ! This matrix is printed in lower diagonal form, simply write as upper diag 
-    TeFile = 1
     allocate(KTe(NeleSpatialOrb,NeleSpatialOrb))
     KTe = 0
-    open(TeFile, file='RL_0.50_RR_6.00_dR_0.10_NEx_1/Te_Vee/Te', status='old')
-    
-    do while (continueReading)
-      read(TeFile,*) i, j, zval
-     
-      if(imagpart(zval) > 0 ) then
-        error stop
-      endif
-       
-      ! This works because i increases slowest
-      if ( i <= NeleSpatialOrb .and. j <= NeleSpatialOrb ) then
-        KTe(j,i) = realpart(zval) !note j, i to make upper triangular
-        if ( i==NeleSpatialOrb .and. j==NeleSpatialOrb ) then
-          continueReading = .false.
-        endif
-      endif
-    end do
+    call readTe('RL_0.50_RR_6.00_dR_0.10_NEx_1/Te_Vee/Te',KTe)
 
-    close(TeFile)
-    !print *, "Te is: "
-    !do i=1,NeleSpatialOrb
-    !  print *, KTe(i,:)
-    !enddo
+    print *, "Te is: "
+    do i=1,NeleSpatialOrb
+      print *, KTe(i,:)
+    enddo
 
     VeeFile = 2
     allocate(KVee(NeleSpatialOrb**2,NeleSpatialOrb**2))
@@ -162,9 +116,11 @@ module operators
       
       ! If we've read in all of the spatial orbitals needed, stop 
       if ( i <= NeleSpatialOrb .and. k <= NeleSpatialOrb  .and. m <= NeleSpatialOrb .and. o<= NeleSpatialOrb ) then
-        ! Fold the Vee spatial integrals 
-        ii = k + NeleSpatialOrb*(i-1) 
-        jj = o + NeleSpatialOrb*(m-1)
+        ! Fold the Vee spatial integrals
+        ! Fold such that for (n1 n2 | n3 n4)
+        ! n1 is fastest and n3 is fastest 
+        ii = i + NeleSpatialOrb*(k-1) 
+        jj = m + NeleSpatialOrb*(o-1)
         KVee(ii,jj) = rval
         if ( i==NeleSpatialOrb .and. k==NeleSpatialOrb .and. m==NeleSpatialOrb .and. o==NeleSpatialOrb ) then
           continueReading = .false.
@@ -210,27 +166,37 @@ module operators
     ! The matrix elements are arranged with the fastest index being the nuclear orbitals
     ! and the slowest index being the slater determinants
 
-    allocate(spinIndI(Nele))
-    spinIndI = 0
-    allocate(spaceIndI(Nele))
-    spaceIndI = 0
-    allocate(spinIndIp(Nele))
-    spinIndI = 0
-    allocate(spaceIndIp(Nele))
-    spaceIndI = 0
+    allocate(spinOrbsI(Nele))
+    spinOrbsI = 0
+    allocate(spaceOrbsI(Nele))
+    spaceOrbsI = 0
+    allocate(spinOrbsIp(Nele))
+    spinOrbsIp = 0
+    allocate(spaceOrbsIp(Nele))
+    spaceOrbsIp = 0
 
     allocate(nucRange(NnucOrb))
     nucRange = (/ (i, i=1,NnucOrb) /)
     allocate(slaterIJ(NnucOrb))
     allocate(slaterIpJp(NnucOrb))
     allocate(MTn(NSlater*NnucOrb,NSlater*NnucOrb))
+    MTn = 0
     allocate(MVee(NSlater*NnucOrb,NSlater*NnucOrb))
+    MVee = 0
     allocate(MTe(NSlater*NnucOrb,NSlater*NnucOrb))
+    MTe = 0
     allocate(IdN(NnucOrb,NnucOrb)) 
     IdN = 0
     do i=1,NnucOrb
       IdN(i,i) = 1.0
     enddo
+
+    if (debug .eqv. .true.) then
+      allocate(tmpMat1(NSlater,NSlater))
+      allocate(tmpMat2(NSlater,NSlater))
+       tmpMat1 = 0
+       tmpMat2 = 0
+    endif
 
     do slaterI=1,NSlater
       do slaterIp=slaterI,NSlater
@@ -238,54 +204,212 @@ module operators
         slaterIpJp = nucRange + NnucOrb*(slaterIp-1)
 
         !MTn
-        if(slaterIp==slaterI) then !TODO: only upper triangular assign
+        if(slaterIp==slaterI) then !TODO: only upper triangular assign, in sparse fashion
           MTn(slaterIJ,slaterIpJp) = KTn
         endif
 
+       !Get spin orbital indices associated to Ip. 
+       spinOrbsI    =   slaterIndices(slaterI)%spinOrbitals;
+       spaceOrbsI   =   slaterIndices(slaterI)%spaceOrbitals;
+       spinOrbsIp   =   slaterIndices(slaterIp)%spinOrbitals;
+       spaceOrbsIp  =   slaterIndices(slaterIp)%spaceOrbitals;
+       if ( slaterIp==slaterI ) then
+         
+         MTeVal=0;
+         MVeeVal =0;
+         do m=1,Nele
+             ! Szabo Table 2.3 Case 1
+             MTeVal = MTeVal + KTe(spaceOrbsI(m),spaceOrbsI(m));
+             do n=(m+1),Nele 
+               ! j+1 as the exchange makes identical spatial orbital integrals die
+               ! for slaterI == slaterIp
+               im_im = spaceOrbsI(m) + NeleSpatialOrb*(spaceOrbsI(m)-1);
+               in_in = spaceOrbsI(n) + NeleSpatialOrb*(spaceOrbsI(n)-1);
+               im_in = spaceOrbsI(m) + NeleSpatialOrb*(spaceOrbsI(n)-1);
+               in_im = spaceOrbsI(n) + NeleSpatialOrb*(spaceOrbsI(m)-1);
+         
+               ! Szabo Table 2.4 Case 1
+               if(mod(spinOrbsI(m),2) == mod(spinOrbsI(n),2)) then
+                 MVeeVal = MVeeVal  +  KVee(im_im,in_in) - KVee(im_in,in_im);
+               else
+                 MVeeVal = MVeeVal  +  KVee(im_im,in_in);
+               endif
+             enddo
+         enddo
+         MTe(slaterIJ,slaterIpJp) = MTeVal*IdN; 
+         MVee(slaterIJ,slaterIpJp) = MVeeVal*IdN;
+       else !if not on diagonal 
+         ! We have to put these into maximum coincidence
+
+         call SlaterMaximumCoincidence(slaterIndices, slaterI, slaterIp, Nele, sgn, &
+                                   numDiffering, dSpinOrbI1, dSpinOrbI2, dSpinOrbIp1, dSpinOrbIp2)
+         
+         if (numDiffering == 1) then
+           if (debug .eqv. .true.) then
+             print *, "numDiffering 1, I=", slaterI, "Ip=",slaterIp
+           endif
+           
+           indexLocation = findloc(spinOrbsI,dSpinOrbI1,1)
+           dSpaceOrbI1    = spaceOrbsI(indexLocation)
+
+           indexLocation = findloc(spinOrbsIp,dSpinOrbIp1,1)
+           dSpaceOrbIp1   = spaceOrbsIp(indexLocation)
         
-        if(CITruncation=='doubles') then
-          !In this case there are no slater determinants which vary by
-          !only one spin orbital
-            
-          !Get spin orbital indeces associated to Ip. 
-          spinIndI    =   slaterIndices(slaterI)%spinOrbitals;
-          spaceIndI   =   slaterIndices(slaterI)%spatialOrbitals;
-          spinIndIp   =   slaterIndices(slaterIp)%spinOrbitals;
-          spaceIndIp  =   slaterIndices(slaterIp)%spatialOrbitals;
-          if(slaterIp==slaterI) then
-            !TODO: 14th Sep check this
-            !MTe 
-            MTeVal=0;
-            MVeeVal =0;
-            do i=1,Nele
-                ! Szabo Table 2.3 Case 1
-                MTeVal = MTeVal + KTe(spaceIndI(i),spaceIndI(i));
-                do j=(i+1),Nele 
-                  ! j+1 as the exchange makes identical spatial orbital integrals die
-                  ! in this case
-                  ii = spaceIndI(i) + NeleSpatialOrb*(spaceIndI(i)-1);
-                  jj = spaceIndI(j) + NeleSpatialOrb*(spaceIndI(j)-1);
-                  ij = spaceIndI(i) + NeleSpatialOrb*(spaceIndI(j)-1);
-                  ji = spaceIndI(j) + NeleSpatialOrb*(spaceIndI(i)-1);
-            
-                  ! Szabo Table 2.4 Case 1
-                  if(mod(spinIndI(i),2) == mod(spinIndI(j),2)) then
-                    MVeeVal = MVeeVal  +  KVee(ii,jj) - KVee(ij,ji);
-                  else
-                    MVeeVal = MVeeVal  +  KVee(ii,jj);
-                  endif
-                enddo
-            enddo
-            MTe(slaterIJ,slaterIpJp) = MTeVal*IdN; 
-            MVee(slaterIJ,slaterIpJp) = MVeeVal*IdN;
-          else !if not on diagonal 
-            ! We have to put these into maximum coincidence
+           ! Szabo Table 2.3 Case 2
+           ! KTe is symmetric and stored as upper triangular
+           if( dSpaceOrbI1 > dSpaceOrbIp1 ) then
+             MTeVal = KTe(dSpaceOrbIp1,dSpaceOrbI1) 
+           else
+             MTeVal = KTe(dSpaceOrbI1,dSpaceOrbIp1)
+           endif
+       
+           !>>> Add the approriate sign <<<!
+           MTe(slaterIJ,slaterIpJp) = sgn*MTeVal*IdN; 
+                      
+           ! Sep 22, debug, check
+           MVeeVal =0;
+           ! Szabo Table 2.4 Case 2
+           ! see also 2.148
+           ! sum_{m\neq n } <mn| |pn> 
+           ! sum_{m\neq n} (i_m i_p | i_n i_n)\delta_{m%2, p%2} - (i_m i_n | i_n i_p)\delta_{m%2,n%2}\delta_{n%2,p%2}
+
+           ! recall that KVee is folded for (n1 n2 | n3 n4)
+           ! as i_n1 + NeleSpatialOrb*(i_n2 - 1)
+           !    i_n3 + NeleSpatialOrb*(i_n4 - 1)
+           if (debug .eqv. .true.) then
+             tmpVal1 = 0
+             tmpVal2 = 0
+           endif
+
+           ! in the naming convention so far we call differing m, p as dSpaceOrbI1, dSpaceOrbIp1
+           im_ip = dSpaceOrbI1 + NeleSpatialOrb*(dSpaceOrbIp1-1)
+           do n=1,Nele
+             ! \sum_n <mn| |pn> 
+             ! except <mm| |pm> which is zero
+             if ( spinOrbsI(n) .ne. dSpinOrbI1) then  
+               if (debug .eqv. .true.) then
+                 print *, "<", spinOrbsI(n), dSpinOrbI1, "  | |",dSpinOrbIp1, spinOrbsI(n), ">"
+               endif
+
+               in_in = spaceOrbsI(n) + NeleSpatialOrb*(spaceOrbsI(n)-1)
+               if ( mod(dSpinOrbI1,2) .eq. mod(dSpinOrbIp1,2) ) then
+                 MVeeVal = MVeeVal + KVee(im_ip,in_in)
+                 if (debug .eqv. .true.) then
+                   print *, "(", dSpaceOrbI1, dSpaceOrbIp1, "   | ", spaceOrbsI(n), spaceOrbsI(n), ") = ", KVee(im_ip,in_in)
+                   tmpVal1 = tmpVal1 + KVee(im_ip,in_in)
+                 endif
+               endif
+
+               if ( (mod(dSpinOrbI1,2) .eq. mod(spinOrbsI(n),2))  .and. (mod(dSpinOrbIp1,2) .eq. mod(spinOrbsI(n),2)) ) then
+                 im_in = dSpaceOrbI1   + NeleSpatialOrb*(spaceOrbsI(n)- 1)
+                 in_ip = spaceOrbsI(n) + NeleSpatialOrb*(dSpaceOrbIp1 - 1)
+                 MVeeVal = MVeeVal - KVee(im_in,in_ip)
+                 if (debug .eqv. .true.) then
+                   print *, "(", dSpaceOrbI1, spaceOrbsI(n), "   | ", spaceOrbsI(n), dSpaceOrbIp1, ") = ", KVee(im_in,in_ip)
+                   tmpVal2 = tmpVal2 - KVee(im_in,in_ip)
+                 endif
+               endif
+
+               !>>> Add the appropriate sign <<<!
+               MVeeVal = sgn*MVeeVal
+               if (debug .eqv. .true.) then
+                 tmpVal1 = sgn*tmpVal1
+                 tmpVal2 = sgn*tmpVal2
+               endif
+
+             endif ! check if <mm| |pm> = 0
+           enddo ! Loop over spin Orbitals
+         
+           MVee(slaterIJ,slaterIpJp) = MVeeVal*IdN;
+           if (debug .eqv. .true.) then
+             tmpMat1(slaterI,slaterIp) = tmpVal1
+             tmpMat2(slaterI,slaterIp) = tmpVal2
+           endif
+
+         elseif (numDiffering == 2) then
+           ! <mn| |pq> = <mn||pq> - <mq|np>
+           ! m = dSpinOrbI1
+           ! n = dSpinOrbI2
+           ! p = dSpinOrbIp1
+           ! q = dSpinOrbIp2
+           if (debug .eqv. .true.) then
+             print *, "numDiffering 2, I=", slaterI, "Ip=",slaterIp
+                 print *, "<", dSpinOrbI1, dSpinOrbI2, "  | |",dSpinOrbIp1, dSpinOrbIp2, ">"
+           endif
+           
+           indexLocation = findloc(spinOrbsI,dSpinOrbI1,1)
+           dSpaceOrbI1    = spaceOrbsI(indexLocation)
+           indexLocation = findloc(spinOrbsI,dSpinOrbI2,1)
+           dSpaceOrbI2    = spaceOrbsI(indexLocation)
+
+           indexLocation = findloc(spinOrbsIp,dSpinOrbIp1,1)
+           dSpaceOrbIp1   = spaceOrbsIp(indexLocation)
+           indexLocation = findloc(spinOrbsIp,dSpinOrbIp2,1)
+           dSpaceOrbIp2   = spaceOrbsIp(indexLocation)
+
+
+           MVeeVal = 0
+           if (debug .eqv. .true.) then
+             tmpVal1 = 0
+             tmpVal2 = 0
+           endif
+           if( (mod(dSpinOrbI1,2) .eq. mod(dSpinOrbIp1,2)) .and. (mod(dSpinOrbI2,2) .eq. mod(dSpinOrbIp2,2)) ) then
+
+             ! <mn||pq> = (im_ip|in_iq) \delta_{m%2,p%2}\delta_{n%2,q%2}
+             
+             im_ip = dSpaceOrbI1 + NeleSpatialOrb*(dSpaceOrbIp1 - 1)
+             in_iq = dSpaceOrbI2 + NeleSpatialOrb*(dSpaceOrbIp2 - 1)
+             
+             MVeeVal = MVeeVal + KVee(im_ip, in_iq)
+             if (debug .eqv. .true.) then
+               print *, "(", dSpaceOrbI1, dSpaceOrbIp1, "   | ",dSpaceOrbI2, dSpaceOrbIp2, ") = ", KVee(im_ip,in_iq)
+               tmpVal1 = tmpVal1 + KVee(im_ip, in_iq)
+             endif
+           
+           endif
+           if( (mod(dSpinOrbI1,2) .eq. mod(dSpinOrbIp2,2)) .and. (mod(dSpinOrbI2,2) .eq. mod(dSpinOrbIp1,2)) ) then
+             
+             ! -1*<mn||qp> = -1*(im_iq|in_ip)\delta_{m%2,q%2}\delta_{n%2,p%2}
+             
+             im_iq = dSpaceOrbI1 + NeleSpatialOrb*(dSpaceOrbIp2 - 1)
+             in_ip = dSpaceOrbI2 + NeleSpatialOrb*(dSpaceOrbIp1 - 1)
+             
+             MVeeVal = MVeeVal - KVee(im_iq, in_ip)
+             if (debug .eqv. .true.) then
+               print *, "(", dSpaceOrbI1, dSpaceOrbIp2, "   | ",dSpaceOrbI2, dSpaceOrbIp1, ") = ", KVee(im_iq,in_ip)
+               tmpVal2 = tmpVal2 - KVee(im_iq, in_ip)
+             endif
+           
+           endif
+           
+           !>>> Add the sign <<<!
+           MVeeVal = sgn*MVeeVal
+           MVee(slaterIJ,slaterIpJp) = MVeeVal*IdN;
+           if (debug .eqv. .true.) then
+             tmpMat1(slaterI,slaterIp) = sgn*tmpVal1
+             tmpMat2(slaterI,slaterIp) = sgn*tmpVal2
+           endif
+
+         endif 
  
-          endif ! slaterI==slaterIP, else
-        endif ! CITruncation=='doubles'
+       endif ! slaterI==slaterIP, else
       enddo ! SlaterIp 
     enddo ! Slater I
-    
+
+    if (debug .eqv. .true.) then
+      print *, "tmpMat1"
+      do i=1,NSlater
+        print *, tmpMat1(i,:)
+      enddo
+      print *, "tmpMat2"
+      do i=1,NSlater
+        print *, tmpMat2(i,:)
+      enddo
+      print *, "MVee"
+      do i=1,NSlater
+        print *, MVee(i,:)
+      enddo
+    endif
     !print *, "MVee is : "
     !do i=1,NnucOrb*NSlater
     !  print *, MVee(i,:)
@@ -294,5 +418,79 @@ module operators
     
   end subroutine setOperators   
 
+  subroutine setNuclearOperators(Tn, nLapl)
+    real, intent(inout)                 ::  Tn(:,:), nLapl(:,:)
+    integer         ::  i
+
+    nLapl = 0
+    Tn = 0
+ 
+    do i = 1,nDim
+      nLapl(i,i) = -73766.0/25200.0
+      if (i < nDim) then 
+        nLapl(i,i+1) = 5.0/3.0
+      endif
+      if (i > 1) then
+          nLapl(i,i-1) = ( 5.0/3.0)
+      endif
+      if (i < (nDim - 1)) then
+          nLapl(i,i+2) = ( -5.0/21.0)
+      endif
+      if (i > 2) then
+          nLapl(i,i-2) = ( -5.0/21.0)
+      endif
+      if (i < (nDim - 2)) then
+          nLapl(i,i+3) = ( 5.0/126.0)
+      endif
+      if (i > 3) then
+          nLapl(i,i-3) = ( 5.0/126.0)
+      endif
+    if (i < (nDim - 3)) then
+          nLapl(i,i+4) = ( -5.0/1008.0)
+      endif
+      if (i > 4) then
+          nLapl(i,i-4) = ( -5.0/1008.0)
+      endif
+      if (i < (nDim - 4)) then
+          nLapl(i,i+5) = ( +1.0/3150.0)
+      endif
+      if (i > 5) then
+          nLapl(i,i-5) = ( +1.0/3150.0)
+      endif    
+    enddo
+ 
+    Tn = -(1/(2*dxn**2*mu_n))*nLapl
+  
+  end subroutine setNuclearOperators
+
+  !TODO: Replace all of these with sparse reads
+  subroutine readTe(filePath, KTe)
+    character(len=*), intent(in)     :: filePath
+    real,               intent(out)    :: KTe(:,:)
+    integer                            :: TeFile,i,j
+    complex                            :: zval
+    logical                            :: continueReading=.true. 
+    
+    TeFile = 1
+    open(TeFile, file=trim(filePath), status='old')
+    
+    do while (continueReading)
+      read(TeFile,*) i, j, zval
+     
+      if(imagpart(zval) > 0 ) then
+        error stop
+      endif
+       
+      ! This works because i increases slowest
+      if ( i <= NeleSpatialOrb .and. j <= NeleSpatialOrb ) then
+        KTe(j,i) = realpart(zval) !note j, i to make upper triangular
+        if ( i==NeleSpatialOrb .and. j==NeleSpatialOrb ) then
+          continueReading = .false.
+        endif
+      endif
+    end do
+    close(TeFile)
+
+  end subroutine readTe 
 
 end module operators
