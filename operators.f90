@@ -17,25 +17,21 @@ module operators
   !       replace spaceInd / spinInd with spaceOrb
   !       change name of dSpaceOrbI1 potentially
   subroutine setOperators()
-    integer, dimension(:), allocatable          :: isuppz, spaceOrbsI, spinOrbsI, nucRange, &
+    integer, dimension(:), allocatable          :: spaceOrbsI, spinOrbsI, nucRange, &
                                                    slaterIJ, slaterIpJp, spaceOrbsIp, spinOrbsIp
     real, dimension(:,:), allocatable           ::  chi, Tn, nLapl, Vnn, KTn, KVnn, &
                                                     IdN, KTe, KVee, MTn, MTe, MVee, &
                                                     MVen, MVnn, tmpMat1, tmpMat2, tmpMat
     real, dimension(:,:,:), allocatable         ::  KVen
     real, dimension(:), allocatable             ::  eigenVals
-    real                                ::  MTeVal=0, MVeeVal =0, rval, tmpVal1, tmpVal2
-    integer                             ::  i, j, k, l, m, n, o, p, lwork, info, slaterIpIp, &
-                                            NIJ, il, iu, vl, vu, Ri, ii, ij, ji, jj, &
-                                            slaterI, slaterIp, slaterJ, slaterJp, &
-                                            TeFile, VeeFile, VenFile, sizeFile, sgn, indexLocation, &
+    real                                ::  MTeVal=0, MVeeVal =0, tmpVal1, tmpVal2
+    integer                             ::  i, j, m, n, &
+                                            slaterI, slaterIp, &
+                                            sgn, indexLocation, &
                                             numDiffering, dSpaceOrbI1, dSpaceOrbI2, dSpaceOrbIp1, &
                                             dSpaceOrbIp2, &
                                             im_im, in_in, im_in, in_im, im_ip, in_ip, in_iq, im_iq, &
                                             dSpinOrbI1, dSpinOrbIp1, dSpinOrbI2, dSpinOrbIp2
-    logical                             ::  continueReading = .true.
-    complex                            :: zval
-    character(len=256)           ::  filepath
 
 
     !TODO: check if rearranged nuclear set up here still agrees with matlab
@@ -96,72 +92,32 @@ module operators
     KTe = 0
     call readTe('RL_0.50_RR_6.00_dR_0.10_NEx_1/Te_Vee/Te',KTe)
 
-    print *, "Te is: "
-    do i=1,NeleSpatialOrb
-      print *, KTe(i,:)
-    enddo
 
-    VeeFile = 2
     allocate(KVee(NeleSpatialOrb**2,NeleSpatialOrb**2))
     KVee = 0
-    open(VeeFile,file='RL_0.50_RR_6.00_dR_0.10_NEx_1/Te_Vee/Vee', status='old')
-    ! Dummy read of header line
-    read(VeeFile,*) 
+    call readVee('RL_0.50_RR_6.00_dR_0.10_NEx_1/Te_Vee/Vee',KVee)
 
-    continueReading = .true.
-    do while (continueReading)
-      !              n1,k1,n2,k2,n3,k3,n4,k4, val 
-      read(VeeFile,*) i, j, k, l, m, n, o, p, rval
-     
-      
-      ! If we've read in all of the spatial orbitals needed, stop 
-      if ( i <= NeleSpatialOrb .and. k <= NeleSpatialOrb  .and. m <= NeleSpatialOrb .and. o<= NeleSpatialOrb ) then
-        ! Fold the Vee spatial integrals
-        ! Fold such that for (n1 n2 | n3 n4)
-        ! n1 is fastest and n3 is fastest 
-        ii = i + NeleSpatialOrb*(k-1) 
-        jj = m + NeleSpatialOrb*(o-1)
-        KVee(ii,jj) = rval
-        if ( i==NeleSpatialOrb .and. k==NeleSpatialOrb .and. m==NeleSpatialOrb .and. o==NeleSpatialOrb ) then
-          continueReading = .false.
-        endif
-      endif
-    end do
-    close(VeeFile)
-
-    VenFile = 3
     allocate(KVen(nDim, NeleSpatialOrb, NeleSpatialOrb))
     KVen = 0
-
-
-    !This matrix is written as lower diagonal, simply write as upper diag
-    !TODO Adjust for R values over 9.99
-    do Ri=1,nDim
-      write(filepath, "(f4.2)") nAxis(Ri)
-      filepath = "RL_0.50_RR_6.00_dR_0.10_NEx_1/Ven/R_"//filepath
-     
-      filepath = trim(filepath)//"/output_me_one_body"
-
-      continueReading=.true.
-      open(VenFile,file=filepath,status='old')
+    call readVen('RL_0.50_RR_6.00_dR_0.10_NEx_1/Ven',KVen)
+    
+    if (debug .eqv. .true.) then
+      print *, "Te is: "
+      do i=1,NeleSpatialOrb
+        print *, KTe(i,:)
+      enddo
       
-      do while (continueReading)
-              
-        read(VenFile,*) i, j, zval
-        
-        if(imagpart(zval) > 0 ) then
-          error stop
-        endif
-         
-        ! This works because i increases slowest
-        if ( i <= NeleSpatialOrb .and. j <= NeleSpatialOrb ) then
-          KVen(Ri,j,i) = realpart(zval) !note j, i to make upper triangular
-          if ( i==NeleSpatialOrb .and. j==NeleSpatialOrb ) then
-            continueReading = .false.
-          endif
-        endif 
-      enddo !read
-    enddo ! R scan
+      print *, "Vee is: "
+      do i=1,NeleSpatialOrb
+        print *, KVee(i,:)
+      enddo
+      open(1,file='Ven.debug',status='old')
+      do i=1,nDim
+          write(1,*)  nAxis(i), (/ (KVen(i,j,j) + 1/nAxis(i), j=1,NeleSpatialOrb) /)
+      enddo
+      close(1)
+    endif
+
 
     ! The matrix elements are arranged with the fastest index being the nuclear orbitals
     ! and the slowest index being the slater determinants
@@ -347,7 +303,6 @@ module operators
            indexLocation = findloc(spinOrbsIp,dSpinOrbIp2,1)
            dSpaceOrbIp2   = spaceOrbsIp(indexLocation)
 
-
            MVeeVal = 0
            if (debug .eqv. .true.) then
              tmpVal1 = 0
@@ -410,11 +365,6 @@ module operators
         print *, MVee(i,:)
       enddo
     endif
-    !print *, "MVee is : "
-    !do i=1,NnucOrb*NSlater
-    !  print *, MVee(i,:)
-    !enddo
-    !dummy change
     
   end subroutine setOperators   
 
@@ -492,5 +442,81 @@ module operators
     close(TeFile)
 
   end subroutine readTe 
+
+  subroutine readVee(filePath,KVee)
+    character(len=*), intent(in)     :: filePath
+    real,               intent(out)    :: KVee(:,:)
+    integer                            :: VeeFile,i,j,k,l,m,n,o,p,ii,jj
+    real                               :: rval
+    logical                            :: continueReading=.true. 
+    
+    VeeFile = 2
+    open(VeeFile,file=trim(filePath), status='old')
+    ! Dummy read of header line
+    read(VeeFile,*) 
+
+    continueReading = .true.
+    do while (continueReading)
+      !              n1,k1,n2,k2,n3,k3,n4,k4, val 
+      read(VeeFile,*) i, j, k, l, m, n, o, p, rval
+     
+      
+      ! If we've read in all of the spatial orbitals needed, stop 
+      if ( i <= NeleSpatialOrb .and. k <= NeleSpatialOrb  .and. m <= NeleSpatialOrb .and. o<= NeleSpatialOrb ) then
+        ! Fold the Vee spatial integrals
+        ! Fold such that for (n1 n2 | n3 n4)
+        ! n1 is fastest and n3 is fastest 
+        ii = i + NeleSpatialOrb*(k-1) 
+        jj = m + NeleSpatialOrb*(o-1)
+        KVee(ii,jj) = rval
+        if ( i==NeleSpatialOrb .and. k==NeleSpatialOrb .and. m==NeleSpatialOrb .and. o==NeleSpatialOrb ) then
+          continueReading = .false.
+        endif
+      endif
+    end do
+    close(VeeFile)
+
+  end subroutine readVee
+
+  subroutine readVen(filePathBase, KVen)
+    character(len=*), intent(in)        :: filePathBase
+    real,               intent(out)     :: KVen(:,:,:)
+    character(len=256)                    :: rstring, filePath
+    complex                             :: zval
+    logical                             :: continueReading=.true.
+    integer                             :: i,j,VenFile, Ri 
+
+    VenFile = 3
+    !This matrix is written as lower diagonal, simply write as upper diag
+    !TODO: Adjust for R values over 9.99
+    !TODO: double check
+    do Ri=1,nDim
+      write(rstring, "(f4.2)") nAxis(Ri)
+      rstring = trim(rstring)
+      filePath = trim(filePathBase)//"/R_"
+      filePath = trim(filePath)//rstring
+      filePath = trim(filePath)//"/output_me_one_body"
+    
+      continueReading=.true.
+      open(VenFile,file=filePath,status='old')
+      
+      do while (continueReading)
+              
+        read(VenFile,*) i, j, zval
+        
+        if(imagpart(zval) > 0 ) then
+          error stop
+        endif
+         
+        ! This works because i increases slowest
+        if ( i <= NeleSpatialOrb .and. j <= NeleSpatialOrb ) then
+          KVen(Ri,j,i) = realpart(zval) !note j, i to make upper triangular
+          if ( i==NeleSpatialOrb .and. j==NeleSpatialOrb ) then
+            continueReading = .false.
+          endif
+        endif 
+      enddo !read
+    enddo ! R scan
+  end subroutine readVen
 
 end module operators

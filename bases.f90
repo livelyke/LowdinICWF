@@ -14,8 +14,8 @@ module bases
     integer,              intent(in)    ::  nEig
     real, dimension(:), allocatable     ::  work
     integer, dimension(:), allocatable  ::  iwork
-    integer                             ::  dimA, i, lwork, liwork, &
-                                            vl, vu, il, iu, info, j
+    integer                             ::  dimA, lwork, liwork, &
+                                            vl, vu, il, iu, info
     integer, dimension(:), allocatable  ::  isuppz
     real                                ::  abstol=-1.0
 

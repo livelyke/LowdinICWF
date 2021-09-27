@@ -36,7 +36,7 @@ module modSlaterIndex
     integer,           intent(out)              ::  sgn, numDiffering, spinOrbI1, spinOrbI2, spinOrbIp1, spinOrbIp2
     integer                                     ::  i, indexLocation, numMatching
     logical                                     ::  firstDiff
-    integer, dimension(:), allocatable          ::  spaceOrbIp, spinOrbIp, spaceOrbI, spinOrbI, tmpSpin
+    integer, dimension(:), allocatable          ::  spinOrbIp, spinOrbI, tmpSpin
 
     allocate(spinOrbI(Nele))
     !allocate(spaceOrbI(Nele))
