@@ -11,7 +11,7 @@ module params
   real, allocatable, dimension(:), public ::  nAxis
   character(len=20),public                ::  CITruncation='doubles-singlet'
   type(SlaterIndex), dimension(:), allocatable,public  ::  slaterIndices
-  logical,                      public    ::  debug=.true.
+  logical,                      public    ::  debug=.true., electronicOnly=.true.
 
   public :: assignConsts
   contains
@@ -21,10 +21,17 @@ module params
     integer               :: spaceOrbI1, spaceOrbI2, spaceOrbIp1, spaceOrbIp2, &
                              s1, sgn, numDiffering
     mu_n=m1*m2/(m1+m2)
-    
-    nDim = (nBoxR-nBoxL)/dxn
-    allocate(nAxis(nDim))
-    nAxis = (/ (nBoxL + i*dxn, i=0,nDim-1) /)
+   
+    if (.not.electronicOnly) then 
+      nDim = (nBoxR-nBoxL)/dxn
+      allocate(nAxis(nDim))
+      nAxis = (/ (nBoxL + i*dxn, i=0,nDim-1) /)
+    else
+      nDim=1
+      allocate(nAxis(nDim))
+      nAxis = 0.5
+      NnucOrb = 1
+    endif
 
     NeleSpinOrb = NeleSpatialOrb*2
 

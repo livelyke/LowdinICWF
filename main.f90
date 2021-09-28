@@ -1,6 +1,7 @@
 program icwf
   use params, only : assignConsts
-  use operators
+  use operators, only : setOperators, H
+  use tdEvolve, only : C, tdEvolveImag
 
   implicit none
 
@@ -8,7 +9,6 @@ program icwf
 
   call setOperators()
 
-  
-
-  !print *, "mu_n:",nAxis
+  !call tdEvolveImag(H) 
+ 
 end program icwf
