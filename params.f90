@@ -7,7 +7,7 @@ module params
                                               NSlater, &
                                               NeleSpatialOrb=3, &
                                               NnucOrb=1
-  real, public                            ::  dxn = 0.1, nBoxL = 0.5, nBoxR = 10, mu_n, dt=0.01, dtImag=0.1
+  real, public                            ::  dxn = 0.1, nBoxL = 0.5, nBoxR = 10, mu_n, dt=0.01, dtImag=0.01
   real, allocatable, dimension(:), public ::  nAxis
   character(len=20),public                ::  CITruncation='doubles-singlet'
   type(SlaterIndex), dimension(:), allocatable,public  ::  slaterIndices
@@ -29,7 +29,7 @@ module params
     else
       nDim=1
       allocate(nAxis(nDim))
-      nAxis = 0.5
+      nAxis = 1.5
       NnucOrb = 1
     endif
 

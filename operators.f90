@@ -415,7 +415,36 @@ module operators
     else
       H = MTn + MTe + MVee + MVen + MVnn
     endif
-    
+   
+    deallocate(Tn) 
+    deallocate(nLapl)
+    deallocate(eigenVals)
+    deallocate(chi)
+    deallocate(KTn) 
+    deallocate(Vnn) 
+    deallocate(KVnn) 
+    deallocate(KVee) 
+    deallocate(KVen) 
+    deallocate(KTe)
+    deallocate(spinOrbsI) 
+    deallocate(spaceOrbsI) 
+    deallocate(spinOrbsIp) 
+    deallocate(spaceOrbsIp)
+    deallocate(nucRange)
+    deallocate(slaterIJ) 
+    deallocate(slaterIpJp)
+    deallocate(MTn) 
+    deallocate(MTe) 
+    deallocate(MVee) 
+    deallocate(MVen) 
+    deallocate(MVenVals) 
+    deallocate(VenKernalOp) 
+    deallocate(IdN) 
+    deallocate(IdE) 
+    deallocate(MVnn) 
+    deallocate(tmpMat) 
+    deallocate(tmpMat1) 
+    deallocate(tmpMat2) 
   end subroutine setOperators   
 
   subroutine setNuclearOperators(Tn, nLapl)

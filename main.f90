@@ -9,6 +9,6 @@ program icwf
 
   call setOperators()
 
-  !call tdEvolveImag(H) 
+  call tdEvolveImag(H) 
  
 end program icwf
