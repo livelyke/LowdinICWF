@@ -1,5 +1,5 @@
 module tdEvolve
-  use params,     only : NSlater,NnucOrb, dtImag
+  use params,     only : NSlater,NnucOrb, dtImag, electronicOnly, nAxis
   use operators,  only : H
   use bases,      only : diagSymMatrix
   implicit none (type, external)
@@ -26,11 +26,6 @@ module tdEvolve
     allocate(Htmp(n,n))
     Htmp=0
     Htmp = H
-    print *, "-----"
-    do iter=1,n
-        print *, H(iter,:)
-    enddo
-    print *, "-----"
     call random_number(C)
     !C = (/ (rand(2*i), i=1,n) /)
     C = C/sqrt(sum(C*C))
@@ -58,7 +53,9 @@ module tdEvolve
     eigenVectors = 0
   
     call diagSymMatrix(Htmp,nEig,eigenVals,eigenVectors)
-    print *, eigenVals
+    if (electronicOnly .eqv. .true.) then
+      print *, nAxis(1), eigenVals
+    endif
     deallocate(eigenVals)
     deallocate(eigenVectors)
  

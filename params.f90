@@ -11,7 +11,7 @@ module params
   real, allocatable, dimension(:), public ::  nAxis
   character(len=20),public                ::  CITruncation='doubles-singlet'
   type(SlaterIndex), dimension(:), allocatable,public  ::  slaterIndices
-  logical,                      public    ::  debug=.true., electronicOnly=.true.
+  logical,                      public    ::  debug=.false., electronicOnly=.true.
 
   public :: assignConsts
   contains

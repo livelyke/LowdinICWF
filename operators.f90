@@ -442,9 +442,11 @@ module operators
     deallocate(IdN) 
     deallocate(IdE) 
     deallocate(MVnn) 
-    deallocate(tmpMat) 
-    deallocate(tmpMat1) 
-    deallocate(tmpMat2) 
+    deallocate(tmpMat)
+    if(debug .eqv. .true.) then  
+      deallocate(tmpMat1) 
+      deallocate(tmpMat2) 
+    endif
   end subroutine setOperators   
 
   subroutine setNuclearOperators(Tn, nLapl)
