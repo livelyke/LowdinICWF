@@ -88,15 +88,15 @@ module operators
  
     allocate(KTe(NeleSpatialOrb,NeleSpatialOrb))
     KTe = 0
-    call readTe('RL_0.50_RR_6.00_dR_0.10_NEx_1/Te_Vee/Te',KTe)
+    call readTe('Te',KTe)
 
     allocate(KVee(NeleSpatialOrb**2,NeleSpatialOrb**2))
     KVee = 0
-    call readVee('RL_0.50_RR_6.00_dR_0.10_NEx_1/Te_Vee/Vee',KVee)
+    call readVee('Vee',KVee)
 
     allocate(KVen(nDim, NeleSpatialOrb, NeleSpatialOrb))
     KVen = 0
-    call readVen('RL_0.50_RR_6.00_dR_0.10_NEx_1/Ven',KVen)
+    call readVen('Ven',KVen)
    
     !>>>>>>>>>>>>>>> Set Hamiltonian Matrix Elements <<<<<<<<<<<<<<<! 
     ! The matrix elements are arranged with the fastest index being the nuclear orbitals
