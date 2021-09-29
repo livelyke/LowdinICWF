@@ -73,7 +73,7 @@ module bases
                           iwork,          &
                           liwork,         &
                           info               )
-    print *, "info: ", info
+    
     lwork = work(1)
     deallocate(work)
     allocate(work2(lwork))
