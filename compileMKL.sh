@@ -16,6 +16,6 @@ gfortran -g -m64   main.o tdEvolve.o bases.o params.o modSlaterIndex.o operators
 #gfortran -c -g -O0   operators.f90  -o operators.o
 #gfortran -c -g -O0   tdEvolve.f90   -o tdEvolve.o
 #gfortran -c -g -O0   main.f90   -o main.o
-gfortran -g  main.o tdEvolve.o bases.o params.o modSlaterIndex.o operators.o /u/klively/bin/OpenBLAS/libopenblas.a  -o main -lpthread #-L${MKLROOT}/lib/intel64  -lblas -llapack
+#gfortran -g  main.o tdEvolve.o bases.o params.o modSlaterIndex.o operators.o /u/klively/bin/OpenBLAS/libopenblas.a  -o main -lpthread #-L${MKLROOT}/lib/intel64  -lblas -llapack
 
 
