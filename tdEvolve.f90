@@ -26,6 +26,11 @@ module tdEvolve
     allocate(Htmp(n,n))
     Htmp=0
     Htmp = H
+    print *, "-----"
+    do iter=1,n
+        print *, H(iter,:)
+    enddo
+    print *, "-----"
     call random_number(C)
     !C = (/ (rand(2*i), i=1,n) /)
     C = C/sqrt(sum(C*C))
@@ -48,7 +53,9 @@ module tdEvolve
 
     nEig = min(5,n)
     allocate(eigenVals(nEig))
+    eigenVals = 0
     allocate(eigenVectors(n,nEig))
+    eigenVectors = 0
   
     call diagSymMatrix(Htmp,nEig,eigenVals,eigenVectors)
     print *, eigenVals

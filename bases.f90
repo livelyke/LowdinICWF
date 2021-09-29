@@ -8,12 +8,13 @@ module bases
 
   contains
   subroutine diagSymMatrix(A, nEig, eigenVals, eigenVectors)
-    real, dimension(:,:), intent(inout) ::  A
-    real, dimension(:,:), intent(inout) ::  eigenVectors
-    real, dimension(:),   intent(inout) ::  eigenVals
+    real,                 intent(inout) ::  A(:,:)
+    real,                 intent(inout) ::  eigenVectors(:,:)
+    real,                 intent(inout) ::  eigenVals(:)
     integer,              intent(in)    ::  nEig
-    real, dimension(:), allocatable     ::  work
-    integer, dimension(:), allocatable  ::  iwork
+    integer                             ::  nEigFound
+    real, dimension(:), allocatable     ::  work, work2
+    integer, dimension(:), allocatable  ::  iwork, iwork2
     integer                             ::  dimA, lwork, liwork, &
                                             vl, vu, il, iu, info
     integer, dimension(:), allocatable  ::  isuppz
@@ -24,7 +25,7 @@ module bases
     lwork=-1
     liwork=-1
     dimA = size(A,1)
-    allocate(isuppz(dimA))
+    allocate(isuppz(2*dimA))
     allocate(work(1))
     allocate(iwork(1))
 
@@ -62,7 +63,7 @@ module bases
                           il,             &
                           iu,             &
                           abstol,         &
-                          nEig,           &
+                          nEigFound,      &
                           eigenVals,      &
                           eigenVectors,   &
                           dimA,           &
@@ -72,13 +73,13 @@ module bases
                           iwork,          &
                           liwork,         &
                           info               )
-
+    print *, "info: ", info
     lwork = work(1)
     deallocate(work)
-    allocate(work(lwork))
+    allocate(work2(lwork))
     liwork = iwork(1)
     deallocate(iwork)
-    allocate(iwork(liwork))
+    allocate(iwork2(liwork))
     
     call        ssyevr(   'V',            &
                           'I',            &
@@ -91,19 +92,19 @@ module bases
                           il,             &
                           iu,             &
                           abstol,         &
-                          nEig,           &
+                          nEigFound,      &
                           eigenVals,      &
                           eigenVectors,   &
                           dimA,           &
                           isuppz,         &
-                          work,           &
+                          work2,           &
                           lwork,          &
-                          iwork,          &
+                          iwork2,          &
                           liwork,         &
                           info               )
 
-    deallocate(iwork)
-    deallocate(work)
+    deallocate(iwork2)
+    deallocate(work2)
     deallocate(isuppz)
 
     end subroutine diagSymMatrix
