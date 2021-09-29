@@ -29,7 +29,9 @@ module params
     else
       nDim=1
       allocate(nAxis(nDim))
-      nAxis = 1.5
+      open(1,file='RVal.txt',status='old')
+      read(1,*) nAxis
+      close(1)
       NnucOrb = 1
     endif
 
