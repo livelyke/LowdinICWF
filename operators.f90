@@ -271,7 +271,7 @@ module operators
               ! except <mm| |pm> which is zero
               if ( spinOrbsI(n) .ne. dSpinOrbI1) then  
                 if (debug .eqv. .true.) then
-                  print *, "<", spinOrbsI(n), dSpinOrbI1, "  | |",dSpinOrbIp1, spinOrbsI(n), ">"
+                  print *, "<",dSpinOrbI1, spinOrbsI(n), "  | |",dSpinOrbIp1, spinOrbsI(n), ">"
                 endif
          
                 in_in = spaceOrbsI(n) + NeleSpatialOrb*(spaceOrbsI(n)-1)

@@ -56,6 +56,8 @@ module modSlaterIndex
         numMatching = numMatching + 1
       endif
     enddo
+    ! We need to report which spin orbitals in slaterI and slaterIp don't match
+    numDiffering = Nele - numMatching
    
     ! The structure of the promotions may help with how to permute indices 
     ! Recall for spin up and down promotions
@@ -82,9 +84,6 @@ module modSlaterIndex
         endif
       enddo
 
-      ! Okay, now they've been put into maximum coincidence, we need to
-      ! report which spin orbitals in slaterI and slaterIp don't match
-      numDiffering = Nele - numMatching
 
       ! |I>  = | ...mn...>
       ! |Ip> = | ...pq...>
