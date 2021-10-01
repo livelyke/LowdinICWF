@@ -5,11 +5,11 @@ module params
   private
   integer, public                         ::  m1=1836,m2=1836, nDim, Nele=2, NeleSpinOrb, &
                                               NSlater, &
-                                              NeleSpatialOrb=3, &
+                                              NeleSpatialOrb=10, &
                                               NnucOrb=1
   real, public                            ::  dxn = 0.1, nBoxL = 0.5, nBoxR = 10, mu_n, dt=0.01, dtImag=0.01
   real, allocatable, dimension(:), public ::  nAxis
-  character(len=20),public                ::  CITruncation='doubles-singlet'
+  character(len=26),public                ::  CITruncation='singles-doubles-singlet'
   type(SlaterIndex), dimension(:), allocatable,public  ::  slaterIndices
   logical,                      public    ::  debug=.false., electronicOnly=.true.
 
@@ -33,9 +33,13 @@ module params
       read(1,*) nAxis
       close(1)
       NnucOrb = 1
+      open(1,file='NeleSpatialOrb.txt',status='old')
+      read(1,*) NeleSpatialOrb
+      close(1)
+      
     endif
 
-    NeleSpinOrb = NeleSpatialOrb*2
+    NeleSpinOrb = 2*NeleSpatialOrb
 
     !TODO: Add Spin adapted configurations
     !TODO: Add singles
@@ -43,9 +47,7 @@ module params
     NSlater = countSlaters(CITruncation)
     allocate(slaterIndices(NSlater))
 
-    if ( CITruncation == 'doubles-singlet' ) then
-      call populateDoublesSinglet(slaterIndices)
-    end if
+    call populateSlaters(slaterIndices, CITruncation)
 
     if (debug .eqv. .true.) then
       do i=1,NSlater
@@ -68,7 +70,7 @@ module params
 
   function countSlaters(CITruncation) result(NSlater)
 
-    character(len=20), intent(in)     ::  CITruncation
+    character(len=26), intent(in)     ::  CITruncation
     integer                   ::  NSlater
     integer                   ::  i, s1, s1Promotion, s2, s2Promotion
     
@@ -94,11 +96,38 @@ module params
       NSlater = 1 + (Nele/2 * (NeleSpinOrb-Nele)/2)**2 &
                + 2*i ! 
     endif
+    if ( CITruncation .eq. 'singles-doubles-singlet' ) then
+      ! This counting procedure excludes `identical' bases
+      ! e.g. for Nele=4, NeleSpinOrb=8
+      ! included would be 5274
+      ! excluded would be 7254
+      ! because 7254 = -5274
+      ! and this doesn't contribute to the span of the basis.
+      i=0
+      do s1 = 1, Nele, 2
+        do s1Promotion = (Nele+1),NeleSpinOrb,2
+          do s2 = s1+2, Nele, 2
+            do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
+              i = i+1
+            enddo
+          enddo
+        enddo
+      enddo 
+      do s1 = 1, Nele, 2
+        do s1Promotion = (Nele+1),NeleSpinOrb,2
+          i = i + 1
+        enddo
+      enddo 
+      
+      NSlater = 1 + (Nele/2 * (NeleSpinOrb-Nele)/2)**2 &
+               + 2*i !> Accounts for both spin channels in single and double 
+    endif
 
   end function countSlaters
 
-  subroutine populateDoublesSinglet(slaterIndices)
+  subroutine populateSlaters(slaterIndices,CITruncation)
     type(SlaterIndex), intent(inout)        ::  slaterIndices(:)
+    character(len=26), intent(in)     ::  CITruncation
     integer   :: i
     integer,dimension(:), allocatable       ::  unexcited, set
     integer                                 ::  s1, s1Promotion, s2, s2Promotion
@@ -112,55 +141,126 @@ module params
     ! of an up spin and a down spin
     i=1
     slaterIndices(i) = SlaterIndex(unexcited)
-    do s1 = 1, Nele, 2 
-      ! start from lowest spin orbital
-      ! promote to every possible spin orbital of same spin
-      do s1Promotion = (Nele+1), NeleSpinOrb, 2
-        do s2 = 2, Nele, 2
-          do s2Promotion = (Nele+2), NeleSpinOrb, 2
-            set = unexcited
-            set(s1) = s1Promotion
-            set(s2) = s2Promotion
-            i = i+1
-            slaterIndices(i) = SlaterIndex(set)
+
+    if (CITruncation=='doubles-singlet') then
+      do s1 = 1, Nele, 2 
+        ! start from lowest spin orbital
+        ! promote to every possible spin orbital of same spin
+        do s1Promotion = (Nele+1), NeleSpinOrb, 2
+          do s2 = 2, Nele, 2
+            do s2Promotion = (Nele+2), NeleSpinOrb, 2
+              set = unexcited
+              set(s1) = s1Promotion
+              set(s2) = s2Promotion
+              i = i+1
+              slaterIndices(i) = SlaterIndex(set)
+            end do
           end do
         end do
       end do
-    end do
-
-    ! do now all the excitations involving the promotion 
-    ! of two up or two down spins
-    ! first for 'up' spins
-    do s1 = 1, Nele, 2
-      do s1Promotion = (Nele+1),NeleSpinOrb,2
-        do s2 = s1+2, Nele, 2
-          do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
-            set = unexcited
-            set(s1) = s1Promotion
-            set(s2) = s2Promotion
-            i = i+1
-            slaterIndices(i) = SlaterIndex(set)
+     
+      ! do now all the excitations involving the promotion 
+      ! of two up or two down spins
+      ! first for 'up' spins
+      do s1 = 1, Nele, 2
+        do s1Promotion = (Nele+1),NeleSpinOrb,2
+          do s2 = s1+2, Nele, 2
+            do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
+              set = unexcited
+              set(s1) = s1Promotion
+              set(s2) = s2Promotion
+              i = i+1
+              slaterIndices(i) = SlaterIndex(set)
+            enddo
+          enddo
+        enddo
+      enddo 
+      
+      ! now for 'down' spins
+      do s1 = 2, Nele, 2
+        do s1Promotion = (Nele+2),NeleSpinOrb,2
+          do s2 = s1+2, Nele, 2
+            do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
+              set = unexcited
+              set(s1) = s1Promotion
+              set(s2) = s2Promotion
+              i = i+1
+              slaterIndices(i) = SlaterIndex(set)
+            enddo
           enddo
         enddo
       enddo
-    enddo 
-    
-    ! now for 'down' spins
-    do s1 = 2, Nele, 2
-      do s1Promotion = (Nele+2),NeleSpinOrb,2
-        do s2 = s1+2, Nele, 2
-          do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
-            set = unexcited
-            set(s1) = s1Promotion
-            set(s2) = s2Promotion
-            i = i+1
-            slaterIndices(i) = SlaterIndex(set)
+    elseif (CITruncation=='singles-doubles-singlet') then
+      !> Start with singles excitation
+      do s1 = 1, Nele, 2
+        do s1Promotion = (Nele+1),NeleSpinOrb,2
+          set = unexcited
+          set(s1) = s1Promotion
+          i = i+1
+          slaterIndices(i) = SlaterIndex(set)
+        enddo
+      enddo 
+      !> Now for opposite spin channel
+      do s1 = 2, Nele, 2
+        do s1Promotion = (Nele+2),NeleSpinOrb,2
+          set = unexcited
+          set(s1) = s1Promotion
+          i = i+1
+          slaterIndices(i) = SlaterIndex(set)
+        enddo
+      enddo 
+
+      do s1 = 1, Nele, 2 
+        ! start from lowest spin orbital
+        ! promote to every possible spin orbital of same spin
+        do s1Promotion = (Nele+1), NeleSpinOrb, 2
+          do s2 = 2, Nele, 2
+            do s2Promotion = (Nele+2), NeleSpinOrb, 2
+              set = unexcited
+              set(s1) = s1Promotion
+              set(s2) = s2Promotion
+              i = i+1
+              slaterIndices(i) = SlaterIndex(set)
+            end do
+          end do
+        end do
+      end do
+     
+      ! do now all the excitations involving the promotion 
+      ! of two up or two down spins
+      ! first for 'up' spins
+      do s1 = 1, Nele, 2
+        do s1Promotion = (Nele+1),NeleSpinOrb,2
+          do s2 = s1+2, Nele, 2
+            do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
+              set = unexcited
+              set(s1) = s1Promotion
+              set(s2) = s2Promotion
+              i = i+1
+              slaterIndices(i) = SlaterIndex(set)
+            enddo
+          enddo
+        enddo
+      enddo 
+      
+      ! now for 'down' spins
+      do s1 = 2, Nele, 2
+        do s1Promotion = (Nele+2),NeleSpinOrb,2
+          do s2 = s1+2, Nele, 2
+            do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
+              set = unexcited
+              set(s1) = s1Promotion
+              set(s2) = s2Promotion
+              i = i+1
+              slaterIndices(i) = SlaterIndex(set)
+            enddo
           enddo
         enddo
       enddo
-    enddo 
 
-  end subroutine populateDoublesSinglet
+    endif 
+
+  end subroutine populateSlaters
 
 
 end module params

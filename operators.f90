@@ -411,7 +411,7 @@ module operators
     if(electronicOnly) then
       allocate(H(NSlater,NSlater))
       H = 0
-      H = MTe + MVee + MVen + (1./nAxis(1))*IdE
+      H = MTe + MVee + MVen + (Vnn(1,1))*IdE
     else
       H = MTn + MTe + MVee + MVen + MVnn
     endif
