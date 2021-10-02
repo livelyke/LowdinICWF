@@ -1,5 +1,5 @@
 module tdEvolve
-  use params,     only : NSlater,NnucOrb, dtImag, electronicOnly, nAxis
+  use params,     only : NSlater,NnucOrb, dtImag, electronicOnly, nAxis, debug
   use operators,  only : H
   use bases,      only : diagSymMatrix
   implicit none (type, external)
@@ -52,6 +52,12 @@ module tdEvolve
     allocate(eigenVectors(n,nEig))
     eigenVectors = 0
   
+    if (debug .eqv. .true.) then
+      print *, "H"
+      do iter=1,n
+        print *, Htmp(iter,:)
+      enddo
+    endif
     call diagSymMatrix(Htmp,nEig,eigenVals,eigenVectors)
     if (electronicOnly .eqv. .true.) then
       print *, nAxis(1), eigenVals

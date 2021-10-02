@@ -3,25 +3,55 @@ module params
 
   implicit none
   private
-  integer, public                         ::  m1=1836,m2=1836, nDim, Nele=2, NeleSpinOrb, &
+  integer, public                         ::  m1=1836,m2=1836, nDim, Nele, NeleSpinOrb, &
                                               NSlater, &
-                                              NeleSpatialOrb=10, &
+                                              NeleSpatialOrb, &
                                               NnucOrb=1
   real, public                            ::  dxn = 0.1, nBoxL = 0.5, nBoxR = 10, mu_n, dt=0.01, dtImag=0.01
   real, allocatable, dimension(:), public ::  nAxis
-  character(len=26),public                ::  CITruncation='singles-doubles-singlet'
+  character(len=26),public                ::  CITruncation
   type(SlaterIndex), dimension(:), allocatable,public  ::  slaterIndices
-  logical,                      public    ::  debug=.false., electronicOnly=.true.
+  logical,                      public    ::  debug, electronicOnly
 
   public :: assignConsts
   contains
+
+  subroutine readInp(CITruncation,Nele,NeleSpatialOrb,debug,electronicOnly,RVal)
+    character(len=26), intent(inout)  ::  CITruncation
+    integer,           intent(inout)  ::  Nele, NeleSpatialOrb
+    logical,           intent(inout)  ::  debug, electronicOnly
+    real,              intent(out)    ::  RVal
+
+    open(1,file='inpICWF',status='old')
+    read(1,*) CITruncation
+    read(1,*) Nele
+    read(1,*) NeleSpatialOrb
+    read(1,*) debug
+    read(1,*) electronicOnly
+    if(electronicOnly .eqv. .true.) then
+      read(1,*) RVal
+    endif
+
+    print *, "CITruncation ", CITruncation
+    print *, "Nele ", Nele
+    print *, "NeleSpatialOrb ", NeleSpatialOrb
+    print *, "debug ", debug
+    print *, "electronicOnly ", electronicOnly
+    print *, "RVal ", RVal
+
+  end subroutine readInp
   
   subroutine assignConsts()
     integer               :: i 
     integer               :: spaceOrbI1, spaceOrbI2, spaceOrbIp1, spaceOrbIp2, &
                              s1, sgn, numDiffering
+    real                  :: Rval
     mu_n=m1*m2/(m1+m2)
    
+
+    call readInp(CITruncation,Nele,NeleSpatialOrb,debug,electronicOnly,RVal)
+
+
     if (.not.electronicOnly) then 
       nDim = (nBoxR-nBoxL)/dxn
       allocate(nAxis(nDim))
@@ -29,14 +59,9 @@ module params
     else
       nDim=1
       allocate(nAxis(nDim))
-      open(1,file='RVal.txt',status='old')
-      read(1,*) nAxis
+      nAxis(1) = RVal
       close(1)
       NnucOrb = 1
-      open(1,file='NeleSpatialOrb.txt',status='old')
-      read(1,*) NeleSpatialOrb
-      close(1)
-      
     endif
 
     NeleSpinOrb = 2*NeleSpatialOrb
