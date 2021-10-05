@@ -147,6 +147,15 @@ module params
       NSlater = 1 + (Nele/2 * (NeleSpinOrb-Nele)/2)**2 &
                + 2*i !> Accounts for both spin channels in single and double 
     endif
+    if ( CITruncation .eq. 'singles-singlet' ) then
+      i=0
+      do s1 = 1, Nele, 2
+        do s1Promotion = (Nele+1),NeleSpinOrb,2
+          i = i + 1
+        enddo
+      enddo 
+      NSlater = 1 + 2*i !> Accounts for both spin channels in single and double 
+    endif
 
   end function countSlaters
 
@@ -215,6 +224,26 @@ module params
           enddo
         enddo
       enddo
+
+    elseif ( CITruncation=='singles-singlet') then
+      !> Start with singles excitation
+      do s1 = 1, Nele, 2
+        do s1Promotion = (Nele+1),NeleSpinOrb,2
+          set = unexcited
+          set(s1) = s1Promotion
+          i = i+1
+          slaterIndices(i) = SlaterIndex(set)
+        enddo
+      enddo 
+      !> Now for opposite spin channel
+      do s1 = 2, Nele, 2
+        do s1Promotion = (Nele+2),NeleSpinOrb,2
+          set = unexcited
+          set(s1) = s1Promotion
+          i = i+1
+          slaterIndices(i) = SlaterIndex(set)
+        enddo
+      enddo 
     elseif (CITruncation=='singles-doubles-singlet') then
       !> Start with singles excitation
       do s1 = 1, Nele, 2

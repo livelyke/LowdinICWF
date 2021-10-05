@@ -46,7 +46,7 @@ module tdEvolve
     !enddo
     !print *, "iter: ", iter, "E:", Enew
 
-    nEig = min(5,n)
+    nEig = min(10,n)
     allocate(eigenVals(nEig))
     eigenVals = 0
     allocate(eigenVectors(n,nEig))
