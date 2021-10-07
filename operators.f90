@@ -17,22 +17,23 @@ module operators
   !       replace spaceInd / spinInd with spaceOrb
   !       change name of dSpaceOrbI1 potentially
   subroutine setOperators()
-    integer, dimension(:), allocatable          :: nucRange, slaterIJ, slaterIpJp
-    real, dimension(:,:), allocatable           ::  chi, Tn, nLapl, Vnn, KTn, KVnn, &
-                                                    IdN, IdE, KTe, KVee, MTn, MTe, MVee, &
-                                                    MVen, MVnn, tmpMat1, tmpMat2, tmpMat, MVenVals, &
-                                                    spinOrbsI, spinOrbsIp, spaceOrbsI, spaceOrbsIp
-    real, dimension(:,:,:), allocatable         ::  KVen
-    real, dimension(:), allocatable             ::  eigenVals, VenKernalOp, coefsI, coefsIp
-    real                                ::  MTeVal=0, MVeeVal=0, tmpVal1, tmpVal2
-    integer                             ::  i, j, m, n, &
-                                            slaterI, slaterIp, &
-                                            sgn, indexLocation, &
-                                            numDiffering, dSpaceOrbI1, dSpaceOrbI2, dSpaceOrbIp1, &
-                                            dSpaceOrbIp2, &
-                                            im_im, in_in, im_in, in_im, im_ip, in_ip, in_iq, im_iq, &
-                                            dSpinOrbI1, dSpinOrbIp1, dSpinOrbI2, dSpinOrbIp2, &
-                                            NConfI, NConfIp
+    integer, dimension(:), allocatable    :: nucRange, slaterIJ, slaterIpJp
+    integer, dimension(:,:), allocatable  :: spinOrbsI, spinOrbsIp, spaceOrbsI, spaceOrbsIp
+    real, dimension(:,:), allocatable     :: chi, Tn, nLapl, Vnn, KTn, KVnn, &
+                                             IdN, IdE, KTe, KVee, MTn, MTe, MVee, &
+                                             MVen, MVnn, tmpMat1, tmpMat2, tmpMat, MVenVals, &
+                                             MVenValsTmp
+    real, dimension(:,:,:), allocatable   :: KVen
+    real, dimension(:), allocatable       :: eigenVals, VenKernalOp, VenKernalOpTmp, coefsI, coefsIp
+    real                                  :: MTeVal, MVeeVal, MTeValTmp, MVeeValTmp
+    integer                               :: i, j, m, n, &
+                                             slaterI, slaterIp, &
+                                             sgn, indexLocation, &
+                                             numDiffering, dSpaceOrbI1, dSpaceOrbI2, dSpaceOrbIp1, &
+                                             dSpaceOrbIp2, &
+                                             im_im, in_in, im_in, in_im, im_ip, in_ip, in_iq, im_iq, &
+                                             dSpinOrbI1, dSpinOrbIp1, dSpinOrbI2, dSpinOrbIp2, &
+                                             NConfI, NConfIp
 
 
     !TODO: check if rearranged nuclear set up here still agrees with matlab
@@ -133,8 +134,12 @@ module operators
     MVen = 0
     allocate(MVenVals(NnucOrb,NnucOrb))
     MVenVals = 0
+    allocate(MVenValsTmp(NnucOrb,NnucOrb))
+    MVenValsTmp = 0
     allocate(VenKernalOp(nDim))
     VenKernalOp = 0
+    allocate(VenKernalOpTmp(nDim))
+    VenKernalOpTmp = 0
     allocate(IdN(NnucOrb,NnucOrb)) 
     IdN = 0
     do i=1,NnucOrb
@@ -168,23 +173,88 @@ module operators
         
         !> Get spin orbital indices associated to Ip. 
         NConfI  = slaterIndices(slaterI)%NConf
-        NConfIp = slaterIndices(slaterI)%NConf
+        NConfIp = slaterIndices(slaterIp)%NConf
 
-        spinOrbsI(:,1:NConfI)   = slaterIndices(slaterI)%spinOrbitals;
-        spaceOrbsI(:,1:NConfI)  = slaterIndices(slaterI)%spaceOrbitals;
+        spinOrbsI(:,1:NConfI)    = slaterIndices(slaterI)%spinOrbitals;
+        spaceOrbsI(:,1:NConfI)   = slaterIndices(slaterI)%spaceOrbitals;
+        coefsI(1:NConfI)         = slaterIndices(slaterI)%coefs;
         spinOrbsIp(:,1:NConfIp)  = slaterIndices(slaterIp)%spinOrbitals;
         spaceOrbsIp(:,1:NConfIp) = slaterIndices(slaterIp)%spaceOrbitals;
+        coefsIp(1:NConfIp)       = slaterIndices(slaterIp)%coefs;
 
-        MTeVal  = 0;
-        MVeeVal = 0;
-        MVenVals = 0;
-        VenKernalOp = 0;
+        MTeVal      = 0
+        MVeeVal     = 0
+        MVenVals    = 0
+        VenKernalOp = 0
         
         do i=1,NConfI
           do j=1,NConfIp
-          enddo
-        enddo
+            if (debug .eqv. .true.) then
+              write(*,'(A,I3,A,I1,A,I3,A,I1)') "I=", slaterI, ".",i,"  Ip=",slaterIp,".",j
+            endif
+            !> Put the constituent slater determinants into maximum coincidence
+            call SlaterMaximumCoincidence(          &
+                  spinOrbsI(:,i),spinOrbsIp(:,j),   &
+                  sgn, numDiffering, dSpinOrbI1,     &
+                  dSpinOrbI2, dSpinOrbIp1, dSpinOrbIp2)
 
+            if (numDiffering <= 1) then
+              MTeValTmp      = 0
+              MVeeValTmp     = 0
+              MVenValsTmp    = 0
+              VenKernalOpTmp = 0
+            elseif (numDiffering == 2) then
+              MVeeValTmp     = 0
+            endif
+
+            if (numDiffering == 0) then
+              call matrixElementsNull(        &
+                                MTeValTmp, MVeeValTmp, MVenValsTmp, VenKernalOpTmp, &
+                                KTe, KVen, KVee,&
+                                spaceOrbsI(:,i), spinOrbsI(:,i))
+            elseif (numDiffering == 1) then
+              if (debug .eqv. .true.) then
+                write(*,'(A,I3,A,I1,A,I3,A,I1)') "numDiffering 1, I=", slaterI, ".",i,"  Ip=",slaterIp,".",j
+              endif
+              call matrixElementsOne(        &
+                                MTeValTmp, MVeeValTmp, MVenValsTmp, VenKernalOpTmp, &
+                                KTe, KVen, KVee,&
+                                spaceOrbsI(:,i), spinOrbsI(:,i), spaceOrbsIp(:,j),spinOrbsIp(:,j), &
+                                dSpinOrbI1, dSpinOrbIp1)
+            elseif (numDiffering == 2) then
+              if (debug .eqv. .true.) then
+                write(*,'(A,I3,A,I1,A,I3,A,I1)') "numDiffering 2, I=", slaterI, ".",i,"  Ip=",slaterIp,".",j
+                    print *, "<", dSpinOrbI1, dSpinOrbI2, "  | |",dSpinOrbIp1, dSpinOrbIp2, ">"
+              endif
+              call matrixElementsTwo(        &
+                                MVeeValTmp, KVee,&
+                                spaceOrbsI(:,i), spinOrbsI(:,i), spaceOrbsIp(:,j),spinOrbsIp(:,j), &
+                                dSpinOrbI1, dSpinOrbIp1, dSpinOrbI2, dSpinOrbIp2)
+            endif
+            !> Sign from Maximum Coincidence is applied here
+            if (numDiffering <= 1) then
+              !> If numDiffering = 0 then MTeValTmp,MVenValsTmp, and VenKernalOpTmp = 0
+              MTeVal      = MTeVal      + sgn*coefsI(i)*coefsIp(j)*MTeValTmp
+              MVeeVal     = MVeeVal     + sgn*coefsI(i)*coefsIp(j)*MVeeValTmp
+              MVenVals    = MVenVals    + sgn*coefsI(i)*coefsIp(j)*MVenValsTmp
+              VenKernalOp = VenKernalOp + sgn*coefsI(i)*coefsIp(j)*VenKernalOpTmp
+            elseif (numDiffering == 2) then
+              MVeeVal     = MVeeVal     + sgn*coefsI(i)*coefsIp(j)*MVeeValTmp
+            endif
+          enddo !< configurations of slater Ip
+        enddo !< configurations of slater I
+
+        MTe(slaterIJ,slaterIpJp) = MTeVal*IdN; 
+        MVee(slaterIJ,slaterIpJp) = MVeeVal*IdN;
+        if (.not. electronicOnly) then
+          do i=1,NnucOrb
+            do j=i,NnucOrb
+              MVenVals(i,j) = sum(chi(:,i)*VenKernalOp*chi(:,j))*dxn
+            enddo
+          enddo
+        endif
+        MVen(slaterIJ,slaterIpJp) = MVenVals
+        
       enddo ! SlaterIp 
     enddo ! Slater I
 
@@ -259,6 +329,185 @@ module operators
       deallocate(tmpMat2) 
     endif
   end subroutine setOperators   
+
+
+  subroutine matrixElementsNull(MTeVal, MVeeVal, MVenVals, VenKernalOp, &
+                                KTe, KVen, KVee,&
+                                spaceOrbsI, spinOrbsI)
+
+    real, intent(inout)           :: MTeVal, MVeeVal, MVenVals(:,:), VenKernalOp(:), &
+                                     KTe(:,:), KVen(:,:,:), KVee(:,:)
+    integer, intent(in)           :: spaceOrbsI(:), spinOrbsI(:)
+    integer   ::  m, n, im_im, in_in, im_in, in_im
+
+    
+    do m=1,Nele
+        ! Szabo Table 2.3 Case 1
+        MTeVal = MTeVal + KTe(spaceOrbsI(m),spaceOrbsI(m));
+        if (electronicOnly) then
+          MVenVals = MVenVals + KVen(1,spaceOrbsI(m),spaceOrbsI(m))
+        else
+          VenKernalOp = VenKernalOp + KVen(:,spaceOrbsI(m),spaceOrbsI(m))
+        endif
+
+        do n=(m+1),Nele 
+          ! j+1 as the exchange makes identical spatial orbital integrals die
+          ! for slaterI == slaterIp
+          im_im = spaceOrbsI(m) + NeleSpatialOrb*(spaceOrbsI(m)-1);
+          in_in = spaceOrbsI(n) + NeleSpatialOrb*(spaceOrbsI(n)-1);
+          im_in = spaceOrbsI(m) + NeleSpatialOrb*(spaceOrbsI(n)-1);
+          in_im = spaceOrbsI(n) + NeleSpatialOrb*(spaceOrbsI(m)-1);
+    
+          ! Szabo Table 2.4 Case 1
+          if(mod(spinOrbsI(m),2) == mod(spinOrbsI(n),2)) then
+            MVeeVal = MVeeVal  +  KVee(im_im,in_in) - KVee(im_in,in_im);
+          else
+            MVeeVal = MVeeVal  +  KVee(im_im,in_in);
+          endif
+        enddo
+    enddo
+
+  end subroutine matrixElementsNull
+
+  subroutine matrixElementsOne(MTeVal, MVeeVal, MVenVals, VenKernalOp, &
+                               KTe, KVen, KVee,&
+                               spaceOrbsI, spinOrbsI, spaceOrbsIp, spinOrbsIp, &
+                               dSpinOrbI1, dSpinOrbIp1)
+
+    real, intent(inout)           :: MTeVal, MVeeVal, MVenVals(:,:), VenKernalOp(:), &
+                                     KTe(:,:), KVen(:,:,:), KVee(:,:)
+    integer, intent(in)           :: spaceOrbsI(:), spinOrbsI(:), spinOrbsIp(:), spaceOrbsIp(:), &
+                                     dSpinOrbI1, dSpinOrbIp1
+    integer   ::  m, n, im_ip, in_in, im_in, in_ip, dSpaceOrbI1, dSpaceOrbIp1, indexLocation
+
+ 
+    indexLocation = findloc(spinOrbsI,dSpinOrbI1,1)
+    dSpaceOrbI1    = spaceOrbsI(indexLocation)
+    
+    indexLocation = findloc(spinOrbsIp,dSpinOrbIp1,1)
+    dSpaceOrbIp1   = spaceOrbsIp(indexLocation)
+ 
+    ! Szabo Table 2.3 Case 2
+    ! KTe and KVen are symmetric and stored as upper triangular
+    if( dSpaceOrbI1 > dSpaceOrbIp1 ) then
+      MTeVal = KTe(dSpaceOrbIp1,dSpaceOrbI1)
+      VenKernalOp = KVen(:,dSpaceOrbIp1, dSpaceOrbI1) 
+    else
+      MTeVal = KTe(dSpaceOrbI1,dSpaceOrbIp1)
+      VenKernalOp = KVen(:,dSpaceOrbI1, dSpaceOrbIp1) 
+    endif
+ 
+    ! Szabo Table 2.4 Case 2
+    ! see also 2.148
+    ! sum_{m\neq n } <mn| |pn> 
+    ! sum_{m\neq n} (i_m i_p | i_n i_n)\delta_{m%2, p%2} - (i_m i_n | i_n i_p)\delta_{m%2,n%2}\delta_{n%2,p%2} 
+    ! recall that KVee is folded for (n1 n2 | n3 n4)
+    ! as i_n1 + NeleSpatialOrb*(i_n2 - 1)
+    !    i_n3 + NeleSpatialOrb*(i_n4 - 1)
+    !if (debug .eqv. .true.) then
+    !  tmpVal1 = 0
+    !  tmpVal2 = 0
+    !endif
+    
+    ! in the naming convention so far we call differing m, p as dSpaceOrbI1, dSpaceOrbIp1
+    im_ip = dSpaceOrbI1 + NeleSpatialOrb*(dSpaceOrbIp1-1)
+    do n=1,Nele
+      ! \sum_n <mn| |pn> 
+      ! except <mm| |pm> which is zero
+      if ( spinOrbsI(n) .ne. dSpinOrbI1) then  
+        if (debug .eqv. .true.) then
+          print *, "<",dSpinOrbI1, spinOrbsI(n), "  | |",dSpinOrbIp1, spinOrbsI(n), ">"
+        endif
+    
+        in_in = spaceOrbsI(n) + NeleSpatialOrb*(spaceOrbsI(n)-1)
+        if ( mod(dSpinOrbI1,2) .eq. mod(dSpinOrbIp1,2) ) then
+          MVeeVal = MVeeVal + KVee(im_ip,in_in)
+          if (debug .eqv. .true.) then
+            print *, "(", dSpaceOrbI1, dSpaceOrbIp1, "   | ", spaceOrbsI(n), spaceOrbsI(n), ") = ", KVee(im_ip,in_in)
+            !tmpVal1 = tmpVal1 + KVee(im_ip,in_in)
+          endif
+        endif
+    
+        if ( (mod(dSpinOrbI1,2) .eq. mod(spinOrbsI(n),2))  .and. (mod(dSpinOrbIp1,2) .eq. mod(spinOrbsI(n),2)) ) then
+          im_in = dSpaceOrbI1   + NeleSpatialOrb*(spaceOrbsI(n)- 1)
+          in_ip = spaceOrbsI(n) + NeleSpatialOrb*(dSpaceOrbIp1 - 1)
+          MVeeVal = MVeeVal - KVee(im_in,in_ip)
+          if (debug .eqv. .true.) then
+            print *, "(", dSpaceOrbI1, spaceOrbsI(n), "   | ", spaceOrbsI(n), dSpaceOrbIp1, ") = ", KVee(im_in,in_ip)
+            !tmpVal2 = tmpVal2 - KVee(im_in,in_ip)
+          endif
+        endif
+    
+        !>>> Add the appropriate sign <<<!
+        !if (debug .eqv. .true.) then
+        !  tmpVal1 = sgn*tmpVal1
+        !  tmpVal2 = sgn*tmpVal2
+        !endif
+    
+      endif ! check if <mm| |pm> = 0
+    enddo ! Loop over spin Orbitals
+    
+  end subroutine matrixElementsOne
+
+  subroutine matrixElementsTwo(MVeeVal, KVee,&
+                               spaceOrbsI, spinOrbsI, spaceOrbsIp, spinOrbsIp, &
+                               dSpinOrbI1, dSpinOrbIp1, dSpinOrbI2, dSpinOrbIp2)
+
+    real, intent(inout)           :: MVeeVal, KVee(:,:)
+    integer, intent(in)           :: spaceOrbsI(:), spinOrbsI(:), spinOrbsIp(:), spaceOrbsIp(:), &
+                                     dSpinOrbI1, dSpinOrbIp1, dSpinOrbI2, dSpinOrbIp2
+    integer   ::  im_ip, in_iq, im_iq, in_ip, dSpaceOrbI1, dSpaceOrbIp1, &
+                  dSpaceOrbI2, dSpaceOrbIp2, indexLocation
+
+    ! <mn| |pq> = <mn||pq> - <mn|qp>
+    ! m = dSpinOrbI1
+    ! n = dSpinOrbI2
+    ! p = dSpinOrbIp1
+    ! q = dSpinOrbIp2
+    
+    indexLocation = findloc(spinOrbsI,dSpinOrbI1,1)
+    dSpaceOrbI1    = spaceOrbsI(indexLocation)
+    indexLocation = findloc(spinOrbsI,dSpinOrbI2,1)
+    dSpaceOrbI2    = spaceOrbsI(indexLocation)
+    
+    indexLocation = findloc(spinOrbsIp,dSpinOrbIp1,1)
+    dSpaceOrbIp1   = spaceOrbsIp(indexLocation)
+    indexLocation = findloc(spinOrbsIp,dSpinOrbIp2,1)
+    dSpaceOrbIp2   = spaceOrbsIp(indexLocation)
+    
+    !if (debug .eqv. .true.) then
+    !  tmpVal1 = 0
+    !  tmpVal2 = 0
+    !endif
+    if( (mod(dSpinOrbI1,2) .eq. mod(dSpinOrbIp1,2)) .and. (mod(dSpinOrbI2,2) .eq. mod(dSpinOrbIp2,2)) ) then
+    
+      ! <mn||pq> = (im_ip|in_iq) \delta_{m%2,p%2}\delta_{n%2,q%2}
+      
+      im_ip = dSpaceOrbI1 + NeleSpatialOrb*(dSpaceOrbIp1 - 1)
+      in_iq = dSpaceOrbI2 + NeleSpatialOrb*(dSpaceOrbIp2 - 1)
+      
+      MVeeVal = MVeeVal + KVee(im_ip, in_iq)
+      if (debug .eqv. .true.) then
+        print *, "(", dSpaceOrbI1, dSpaceOrbIp1, "   | ",dSpaceOrbI2, dSpaceOrbIp2, ") = ", KVee(im_ip,in_iq)
+        !tmpVal1 = tmpVal1 + KVee(im_ip, in_iq)
+      endif
+    
+    endif
+    if( (mod(dSpinOrbI1,2) .eq. mod(dSpinOrbIp2,2)) .and. (mod(dSpinOrbI2,2) .eq. mod(dSpinOrbIp1,2)) ) then
+      
+      ! -1*<mn||qp> = -1*(im_iq|in_ip)\delta_{m%2,q%2}\delta_{n%2,p%2}
+      
+      im_iq = dSpaceOrbI1 + NeleSpatialOrb*(dSpaceOrbIp2 - 1)
+      in_ip = dSpaceOrbI2 + NeleSpatialOrb*(dSpaceOrbIp1 - 1)
+      
+      MVeeVal = MVeeVal - KVee(im_iq, in_ip)
+      if (debug .eqv. .true.) then
+        print *, "(", dSpaceOrbI1, dSpaceOrbIp2, "   | ",dSpaceOrbI2, dSpaceOrbIp1, ") = ", KVee(im_iq,in_ip)
+        !tmpVal2 = tmpVal2 - KVee(im_iq, in_ip)
+      endif
+    endif
+
+  end subroutine matrixElementsTwo
 
   subroutine setNuclearOperators(Tn, nLapl)
     real, intent(inout)                 ::  Tn(:,:), nLapl(:,:)

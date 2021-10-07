@@ -38,6 +38,8 @@ module modSlaterIndex
     !> TODO: Make sure the doubles are fed in the correct order
     if ( NConf == 2 ) then
       initSlater%coefs = 1.0/sqrt(2.0)
+    elseif ( NConf == 1 ) then
+      initSlater%coefs = 1.0
     elseif ( NConf == 6 ) then
       initSlater%coefs(1:2) =  2.0/sqrt(12.0)
       initSlater%coefs(3)   = -1.0/sqrt(12.0)
@@ -122,12 +124,12 @@ module modSlaterIndex
         endif
       enddo
 
-      print *, ">> has <<"
-      print *, "spinOrbI ", spinOrbI
-      print *, "spinOrbIp", spinOrbIp
+      !print *, ">> has <<"
+      !print *, "spinOrbI ", spinOrbI
+      !print *, "spinOrbIp", spinOrbIp
       !print *, "spaceOrbI1: ", spaceOrbI1, "spaceOrbI2: ", spaceOrbI2
       !print *, "spaceOrbIp1:", spaceOrbIp1, "spaceOrbIp2:", spaceOrbIp2
-      print *, ">> with sign = ", sgn, ", numDiffering =",numDiffering,"<<"
+      !print *, ">> with sign = ", sgn, ", numDiffering =",numDiffering,"<<"
       
     else
       sgn=0
