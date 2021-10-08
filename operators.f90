@@ -22,7 +22,7 @@ module operators
     real, dimension(:,:), allocatable     :: chi, Tn, nLapl, Vnn, KTn, KVnn, &
                                              IdN, IdE, KTe, KVee, MTn, MTe, MVee, &
                                              MVen, MVnn, tmpMat1, tmpMat2, tmpMat, MVenVals, &
-                                             MVenValsTmp
+                                             MVenValsTmp, KDx, KDy, KDz
     real, dimension(:,:,:), allocatable   :: KVen
     real, dimension(:), allocatable       :: eigenVals, VenKernalOp, VenKernalOpTmp, coefsI, coefsIp
     real                                  :: MTeVal, MVeeVal, MTeValTmp, MVeeValTmp
@@ -99,7 +99,16 @@ module operators
     allocate(KVen(nDim, NeleSpatialOrb, NeleSpatialOrb))
     KVen = 0
     call readVen('Ven',KVen)
-   
+    
+    allocate(KDx(NeleSpatialOrb,NeleSpatialOrb))
+    KDx = 0
+    allocate(KDy(NeleSpatialOrb,NeleSpatialOrb))
+    KDy = 0
+    allocate(KDz(NeleSpatialOrb,NeleSpatialOrb))
+    KDz = 0
+
+    call readDipole('ks_me_dipole.k1_',KDx,KDy,KDz)   
+
     !>>>>>>>>>>>>>>> Set Hamiltonian Matrix Elements <<<<<<<<<<<<<<<! 
     ! The matrix elements are arranged with the fastest index being the nuclear orbitals
     ! and the slowest index being the slater determinants
@@ -685,5 +694,48 @@ module operators
       close(1)
     endif
   end subroutine readVen
+
+  subroutine readDipole(filePath, KDx, KDy, KDz)
+    character(len=*), intent(in)        :: filePath
+    real,             intent(out)     :: KDx(:,:), KDy(:,:), KDz(:,:)
+    integer ::  i,j, xfile, yfile, zfile
+   
+    xfile = 100
+    yfile = 101
+    zfile = 102
+    open(xfile,file=trim(filePath)//'x', status='old')
+    open(yfile,file=trim(filePath)//'y', status='old')
+    open(zfile,file=trim(filePath)//'z', status='old')
+    do i=1,3
+      read(xfile,*)
+      read(yfile,*)
+      read(zfile,*)
+    enddo
+    do i=1,NeleSpatialOrb
+      read(xfile,*) (KDx(i,j),j=1,NeleSpatialOrb)
+      read(yfile,*) (KDy(i,j),j=1,NeleSpatialOrb)
+      read(zfile,*) (KDz(i,j),j=1,NeleSpatialOrb)
+    enddo
+    close(xfile)
+    close(yfile)
+    close(zfile)
+
+    if (debug) then
+      print *, "KDx"
+      do i=1,NeleSpatialOrb
+        print *, KDx(i,:)
+      enddo
+      print *, "KDy"
+      do i=1,NeleSpatialOrb
+        print *, KDy(i,:)
+      enddo
+      print *, "KDz"
+      do i=1,NeleSpatialOrb
+        print *, KDz(i,:)
+      enddo
+    endif
+
+
+  end subroutine readDipole
 
 end module operators
