@@ -42,7 +42,7 @@ module params
   end subroutine readInp
   
   subroutine assignConsts()
-    integer               :: i 
+    integer               :: i, j, k
     integer               :: spaceOrbI1, spaceOrbI2, spaceOrbIp1, spaceOrbIp2, &
                              s1, sgn, numDiffering
     real                  :: Rval
@@ -78,17 +78,32 @@ module params
       do i=1,NSlater
         print *, "------------"
         print *, "Slater I=", i
-        print *, "spinOrbs ", slaterIndices(i)%spinOrbitals
-        print *, "spaceOrbs", slaterIndices(i)%spaceOrbitals
+        print *, "spinOrbs " 
+        do s1=1,size(slaterIndices(i)%spinOrbitals,2)
+          print *, slaterIndices(i)%spinOrbitals(:,s1)
+        enddo
+        print *, "spaceOrbs"
+        do s1=1,size(slaterIndices(i)%spaceOrbitals,2)
+          print *, slaterIndices(i)%spaceOrbitals(:,s1)
+        enddo
       enddo
       print *, "------------"
 
-      do i=1,NSlater
-        do s1=(i+1),NSlater
-          call SlaterMaximumCoincidence(slaterIndices,i, s1, Nele, sgn, numDiffering, &
-                                        spaceOrbI1, spaceOrbI2, spaceOrbIp1, spaceOrbIp2)
-        enddo
-      enddo
+      !do i=1,NSlater
+      !  do j=1,slaterIndices(i)%NConf 
+      !    do s1=(i+1),NSlater
+      !      do k=1,slaterIndices(s1)%NConf
+      !  
+      !        write(*,'(A,I3,A,I1,A,I3,A,I1)') "I=", i, ".",j,"  Ip=",s1,".",k
+      !        call SlaterMaximumCoincidence( &
+      !              slaterIndices(i)%spinOrbitals(:,j), &
+      !              slaterIndices(s1)%spinOrbitals(:,k), sgn, numDiffering, &
+      !              spaceOrbI1, spaceOrbI2, spaceOrbIp1, spaceOrbIp2)
+      !        print *, "------------"
+      !      enddo
+      !    enddo
+      !  enddo
+      !enddo
     endif
 
   end subroutine assignConsts
@@ -99,54 +114,6 @@ module params
     integer                   ::  NSlater
     integer                   ::  i, s1, s1Promotion, s2, s2Promotion
     
-
-    if ( CITruncation .eq. 'doubles-singlet' ) then
-      ! This counting procedure excludes `identical' bases
-      ! e.g. for Nele=4, NeleSpinOrb=8
-      ! included would be 5274
-      ! excluded would be 7254
-      ! because 7254 = -5274
-      ! and this doesn't contribute to the span of the basis.
-      i=0
-      do s1 = 1, Nele, 2
-        do s1Promotion = (Nele+1),NeleSpinOrb,2
-          do s2 = s1+2, Nele, 2
-            do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
-              i = i+1
-            enddo
-          enddo
-        enddo
-      enddo 
-      
-      NSlater = 1 + (Nele/2 * (NeleSpinOrb-Nele)/2)**2 &
-               + 2*i ! 
-    endif
-    if ( CITruncation .eq. 'singles-doubles-singlet' ) then
-      ! This counting procedure excludes `identical' bases
-      ! e.g. for Nele=4, NeleSpinOrb=8
-      ! included would be 5274
-      ! excluded would be 7254
-      ! because 7254 = -5274
-      ! and this doesn't contribute to the span of the basis.
-      i=0
-      do s1 = 1, Nele, 2
-        do s1Promotion = (Nele+1),NeleSpinOrb,2
-          do s2 = s1+2, Nele, 2
-            do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
-              i = i+1
-            enddo
-          enddo
-        enddo
-      enddo 
-      do s1 = 1, Nele, 2
-        do s1Promotion = (Nele+1),NeleSpinOrb,2
-          i = i + 1
-        enddo
-      enddo 
-      
-      NSlater = 1 + (Nele/2 * (NeleSpinOrb-Nele)/2)**2 &
-               + 2*i !> Accounts for both spin channels in single and double 
-    endif
     if ( CITruncation .eq. 'singles-singlet' ) then
       i=0
       do s1 = 1, Nele, 2
@@ -154,164 +121,587 @@ module params
           i = i + 1
         enddo
       enddo 
-      NSlater = 1 + 2*i !> Accounts for both spin channels in single and double 
+      NSlater = 1 + i !> Accounts for both spin channels in single and double 
+    elseif ( CITruncation=='doubles-singlet' ) then
+      i=0
+      !> Same to Same
+      do s1 = 1, Nele, 2
+        do s1Promotion = (Nele+1),NeleSpinOrb,2
+          i = i + 1
+        enddo
+      enddo
+
+      !> Same to Different
+      do s1=1,Nele,2
+        !> Promote every other opposite spin electron in the determinant
+        do s2=s1+1,Nele,2
+          !> Write s1Promotion in terms of space Orbitals
+          do s1Promotion = (Nele/2+1),NeleSpatialOrb
+            do s2Promotion=s1Promotion+1,NeleSpatialOrb
+              i = i+1
+            enddo
+          enddo
+        enddo
+      enddo
+
+      !> Different to Same
+      do s1=1,Nele,2
+        !> Promote every other opposite spin electron in the determinant
+        !> Besides The neighboring one which comes from the same space orb.
+        do s2=s1+3,Nele,2
+          !> Write s1Promotion in terms of space Orbitals
+          do s1Promotion = (Nele/2+1),NeleSpatialOrb
+              i = i+1
+          enddo
+        enddo
+      enddo
+
+      !> Different to Different A and b
+      do s1=1,Nele/2
+        !> Promote every other opposite spin electron in the determinant
+        do s2=s1+1,Nele/2
+          !> Write s Promotions in terms of space Orbitals
+          do s1Promotion = (Nele/2+1),NeleSpatialOrb
+            do s2Promotion = s1Promotion+1,NeleSpatialOrb
+              i = i+2
+            enddo
+          enddo
+        enddo
+      enddo
+
+      NSlater = 1 + i !> Accounts for both spin channels in single and double 
+    elseif ( CITruncation=='singles-doubles-singlet' ) then
+      i=0
+      !> Singlet and Same to Same
+      do s1 = 1, Nele, 2
+        do s1Promotion = (Nele+1),NeleSpinOrb,2
+          i = i + 2 !< singlet and same to same
+        enddo
+      enddo
+
+      !> Same to Different
+      do s1=1,Nele,2
+        !> Promote every other opposite spin electron in the determinant
+        do s2=s1+1,Nele,2
+          !> Write s1Promotion in terms of space Orbitals
+          do s1Promotion = (Nele/2+1),NeleSpatialOrb
+            do s2Promotion=s1Promotion+1,NeleSpatialOrb
+              i = i+1
+            enddo
+          enddo
+        enddo
+      enddo
+
+      !> Different to Same
+      do s1=1,Nele,2
+        !> Promote every other opposite spin electron in the determinant
+        !> Besides The neighboring one which comes from the same space orb.
+        do s2=s1+3,Nele,2
+          !> Write s1Promotion in terms of space Orbitals
+          do s1Promotion = (Nele/2+1),NeleSpatialOrb
+              i = i+1
+          enddo
+        enddo
+      enddo
+
+      !> Different to Different A and b
+      do s1=1,Nele/2
+        !> Promote every other opposite spin electron in the determinant
+        do s2=s1+1,Nele/2
+          !> Write s Promotions in terms of space Orbitals
+          do s1Promotion = (Nele/2+1),NeleSpatialOrb
+            do s2Promotion = s1Promotion+1,NeleSpatialOrb
+              i = i+2
+            enddo
+          enddo
+        enddo
+      enddo
+
+      NSlater = 1 + i !> Accounts for both spin channels in single and double 
+    endif
+
+    if (debug) then
+      write(*,'(A,I5)') "NSlaters =", NSlater
     endif
 
   end function countSlaters
 
-  subroutine populateSlaters(slaterIndices,CITruncation)
+  subroutine populateSlaters(slaterIndices, CITruncation)
     type(SlaterIndex), intent(inout)        ::  slaterIndices(:)
     character(len=26), intent(in)     ::  CITruncation
-    integer   :: i
-    integer,dimension(:), allocatable       ::  unexcited, set
+    integer   :: i, j, a, b, r, s, aSpin, bSpin, rSpin, sSpin
+    integer,dimension(:,:), allocatable       ::  unexcitedSpin, unexcitedSpace, spinSet
     integer                                 ::  s1, s1Promotion, s2, s2Promotion
  
     !allocate(slaterIndices(NSlater))
-    allocate(unexcited(Nele))
-    unexcited = (/ (i, i=1,Nele) /)
-    allocate(set(Nele))
+    allocate(unexcitedSpin(Nele,1))
+    unexcitedSpin(:,1) = (/ (i, i=1,Nele) /)
+    allocate(unexcitedSpace(Nele,1))
+    unexcitedSpace(:,1) = (/ (ceiling(i/2.0), i=1,Nele) /)
  
     ! do first all the double excitations involving the promotion
     ! of an up spin and a down spin
     i=1
-    slaterIndices(i) = SlaterIndex(unexcited)
+    slaterIndices(i) = SlaterIndex(unexcitedSpin)
 
-    if (CITruncation=='doubles-singlet') then
-      do s1 = 1, Nele, 2 
-        ! start from lowest spin orbital
-        ! promote to every possible spin orbital of same spin
+    if ( CITruncation=='singles-singlet') then
+      allocate(spinSet(Nele, 2))
+      spinSet = 0
+      !> go through spin orbitals in pairs
+      do s1 = 1, Nele ,2
         do s1Promotion = (Nele+1), NeleSpinOrb, 2
-          do s2 = 2, Nele, 2
-            do s2Promotion = (Nele+2), NeleSpinOrb, 2
-              set = unexcited
-              set(s1) = s1Promotion
-              set(s2) = s2Promotion
-              i = i+1
-              slaterIndices(i) = SlaterIndex(set)
-            end do
-          end do
-        end do
-      end do
-     
-      ! do now all the excitations involving the promotion 
-      ! of two up or two down spins
-      ! first for 'up' spins
-      do s1 = 1, Nele, 2
-        do s1Promotion = (Nele+1),NeleSpinOrb,2
-          do s2 = s1+2, Nele, 2
-            do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
-              set = unexcited
-              set(s1) = s1Promotion
-              set(s2) = s2Promotion
-              i = i+1
-              slaterIndices(i) = SlaterIndex(set)
-            enddo
-          enddo
+          spinSet(:,1) = unexcitedSpin(:,1)
+          spinSet(:,2) = unexcitedSpin(:,1)
+
+          !> spin up and spin down channels
+          do s2=0,1
+            spinSet(s1+s2,1+s2) = s1Promotion+s2
+          enddo 
+          i = i+1
+          slaterIndices(i) = SlaterIndex(spinSet)
         enddo
       enddo 
+    elseif ( CITruncation=='doubles-singlet' ) then
+      allocate(spinSet(Nele, 1))
+      spinSet = 0
+      !> Do the double excitation from same space orbital to same space orbital
+      do s1=1,Nele,2
+        do s1Promotion = (Nele+1),NeleSpinOrb,2
+          spinSet(:,1) = unexcitedSpin(:,1)
+          
+          spinSet(s1,1) = s1Promotion
+          spinSet(s1+1,1) = s1Promotion+1
+          
+          i = i+1
+          slaterIndices(i) = SlaterIndex(spinSet)
+        enddo
+      enddo
+      deallocate(spinSet)
       
-      ! now for 'down' spins
-      do s1 = 2, Nele, 2
-        do s1Promotion = (Nele+2),NeleSpinOrb,2
-          do s2 = s1+2, Nele, 2
-            do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
-              set = unexcited
-              set(s1) = s1Promotion
-              set(s2) = s2Promotion
+      !> Do the double excitations from same to different
+      allocate(spinSet(Nele, 2))
+      spinSet = 0
+
+      do s1=1,Nele,2
+        !> Promote every other opposite spin electron in the determinant
+        do s2=s1+1,Nele,2
+          !> Write s1Promotion in terms of space Orbitals
+          do s1Promotion = (Nele/2+1),NeleSpatialOrb
+            do s2Promotion=s1Promotion+1,NeleSpatialOrb
+              spinSet(:,1) = unexcitedSpin(:,1)
+              spinSet(:,2) = unexcitedSpin(:,1)
+              
+              !> Map from Space orbitals to spin
+              spinSet(s1,1) = 2*s1Promotion - 1
+              spinSet(s2,1) = 2*s2Promotion
+              spinSet(s1,2) = 2*s2Promotion - 1
+              spinSet(s2,2) = 2*s1Promotion
               i = i+1
-              slaterIndices(i) = SlaterIndex(set)
+              slaterIndices(i) = SlaterIndex(spinSet)
             enddo
           enddo
         enddo
       enddo
 
-    elseif ( CITruncation=='singles-singlet') then
-      !> Start with singles excitation
-      do s1 = 1, Nele, 2
-        do s1Promotion = (Nele+1),NeleSpinOrb,2
-          set = unexcited
-          set(s1) = s1Promotion
-          i = i+1
-          slaterIndices(i) = SlaterIndex(set)
+      !> From Different to same
+      do s1=1,Nele,2
+        !> Promote every other opposite spin electron in the determinant
+        !> Besides The neighboring one which comes from the same space orb.
+        do s2=s1+3,Nele,2
+          !> Write s1Promotion in terms of space Orbitals
+          do s1Promotion = (Nele/2+1),NeleSpatialOrb
+            s2Promotion=s1Promotion
+            spinSet(:,1) = unexcitedSpin(:,1)
+            spinSet(:,2) = unexcitedSpin(:,1)
+            
+            !> Map from Space orbitals to spin
+            spinSet(s1,1) = 2*s1Promotion - 1
+            spinSet(s2,1) = 2*s2Promotion
+            spinSet(s1+1,2) = 2*s2Promotion - 1
+            spinSet(s2-1,2) = 2*s1Promotion
+            i = i+1
+            slaterIndices(i) = SlaterIndex(spinSet)
+          enddo
         enddo
-      enddo 
-      !> Now for opposite spin channel
-      do s1 = 2, Nele, 2
-        do s1Promotion = (Nele+2),NeleSpinOrb,2
-          set = unexcited
-          set(s1) = s1Promotion
-          i = i+1
-          slaterIndices(i) = SlaterIndex(set)
-        enddo
-      enddo 
-    elseif (CITruncation=='singles-doubles-singlet') then
-      !> Start with singles excitation
-      do s1 = 1, Nele, 2
-        do s1Promotion = (Nele+1),NeleSpinOrb,2
-          set = unexcited
-          set(s1) = s1Promotion
-          i = i+1
-          slaterIndices(i) = SlaterIndex(set)
-        enddo
-      enddo 
-      !> Now for opposite spin channel
-      do s1 = 2, Nele, 2
-        do s1Promotion = (Nele+2),NeleSpinOrb,2
-          set = unexcited
-          set(s1) = s1Promotion
-          i = i+1
-          slaterIndices(i) = SlaterIndex(set)
-        enddo
-      enddo 
+      enddo
 
-      do s1 = 1, Nele, 2 
-        ! start from lowest spin orbital
-        ! promote to every possible spin orbital of same spin
-        do s1Promotion = (Nele+1), NeleSpinOrb, 2
-          do s2 = 2, Nele, 2
-            do s2Promotion = (Nele+2), NeleSpinOrb, 2
-              set = unexcited
-              set(s1) = s1Promotion
-              set(s2) = s2Promotion
+      deallocate(spinSet)
+
+      !> From different to different A      
+      allocate(spinSet(Nele, 6))
+      spinSet = 0
+      !> do loops over a,b,r,s
+      do a=1,Nele/2
+        !> Promote every other opposite spin electron in the determinant
+        do b=a+1,Nele/2
+          !> Write s Promotions in terms of space Orbitals
+          do r = (Nele/2+1),NeleSpatialOrb
+            do s = r+1,NeleSpatialOrb
+              do j=1,6
+                spinSet(:,j) = unexcitedSpin(:,1)
+              enddo
+              !> ab->rs
+              !> map from space to spin
+              aSpin = 2*a-1
+              bSpin = 2*b-1
+              rSpin = 2*r-1
+              sSpin = 2*s-1
+              
+              spinSet(aSpin,1) = rSpin 
+              spinSet(bSpin,1) = sSpin 
+              
+              !> \bar{ab}->\bar{rs}
+              !> map from space to spin
+              aSpin = 2*a
+              bSpin = 2*b
+              rSpin = 2*r
+              sSpin = 2*s
+              
+              spinSet(aSpin,2) = rSpin 
+              spinSet(bSpin,2) = sSpin 
+              
+              !> \bar{a}b->\bar{s}r
+              !> map from space to spin
+              aSpin = 2*a
+              bSpin = 2*b-1
+              rSpin = 2*r-1
+              sSpin = 2*s
+              
+              spinSet(aSpin,3) = sSpin 
+              spinSet(bSpin,3) = rSpin 
+              
+              !> \bar{a}b->\bar{r}s
+              !> map from space to spin
+              aSpin = 2*a
+              bSpin = 2*b-1
+              rSpin = 2*r
+              sSpin = 2*s-1
+              
+              spinSet(aSpin,4) = rSpin 
+              spinSet(bSpin,4) = sSpin 
+              
+              !> a\bar{b}->r\bar{s}
+              !> map from space to spin
+              aSpin = 2*a-1
+              bSpin = 2*b
+              rSpin = 2*r-1
+              sSpin = 2*s
+              
+              spinSet(aSpin,5) = rSpin 
+              spinSet(bSpin,5) = sSpin 
+              
+              !> a\bar{b}->s\bar{r}
+              !> map from space to spin
+              aSpin = 2*a-1
+              bSpin = 2*b
+              rSpin = 2*r
+              sSpin = 2*s-1
+              
+              spinSet(aSpin,6) = sSpin 
+              spinSet(bSpin,6) = rSpin 
+            
               i = i+1
-              slaterIndices(i) = SlaterIndex(set)
-            end do
-          end do
-        end do
-      end do
-     
-      ! do now all the excitations involving the promotion 
-      ! of two up or two down spins
-      ! first for 'up' spins
-      do s1 = 1, Nele, 2
-        do s1Promotion = (Nele+1),NeleSpinOrb,2
-          do s2 = s1+2, Nele, 2
-            do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
-              set = unexcited
-              set(s1) = s1Promotion
-              set(s2) = s2Promotion
-              i = i+1
-              slaterIndices(i) = SlaterIndex(set)
+              slaterIndices(i) = SlaterIndex(spinSet)
+              
             enddo
           enddo
         enddo
-      enddo 
+      enddo
       
-      ! now for 'down' spins
-      do s1 = 2, Nele, 2
-        do s1Promotion = (Nele+2),NeleSpinOrb,2
-          do s2 = s1+2, Nele, 2
-            do s2Promotion = (s1Promotion+2), NeleSpinOrb,2
-              set = unexcited
-              set(s1) = s1Promotion
-              set(s2) = s2Promotion
+      deallocate(spinSet)
+
+      !> From different to different B
+      allocate(spinSet(Nele, 4))
+      spinSet = 0
+      !> do loops over a,b,r,s
+      do a=1,Nele/2
+        !> Promote every other opposite spin electron in the determinant
+        do b=a+1,Nele/2
+          !> Write s Promotions in terms of space Orbitals
+          do r = (Nele/2+1),NeleSpatialOrb
+            do s = r+1,NeleSpatialOrb
+              do j=1,4
+                spinSet(:,j) = unexcitedSpin(:,1)
+              enddo
+              
+              !> \bar{a}b->\bar{s}r
+              !> map from space to spin
+              aSpin = 2*a
+              bSpin = 2*b-1
+              rSpin = 2*r-1
+              sSpin = 2*s
+              
+              spinSet(aSpin,1) = sSpin 
+              spinSet(bSpin,1) = rSpin 
+              
+              !> \bar{a}b->\bar{r}s
+              !> map from space to spin
+              aSpin = 2*a
+              bSpin = 2*b-1
+              rSpin = 2*r
+              sSpin = 2*s-1
+              
+              spinSet(aSpin,2) = rSpin 
+              spinSet(bSpin,2) = sSpin 
+              
+              !> a\bar{b}->r\bar{s}
+              !> map from space to spin
+              aSpin = 2*a-1
+              bSpin = 2*b
+              rSpin = 2*r-1
+              sSpin = 2*s
+              
+              spinSet(aSpin,3) = rSpin 
+              spinSet(bSpin,3) = sSpin 
+              
+              !> a\bar{b}->s\bar{r}
+              !> map from space to spin
+              aSpin = 2*a-1
+              bSpin = 2*b
+              rSpin = 2*r
+              sSpin = 2*s-1
+              
+              spinSet(aSpin,4) = sSpin 
+              spinSet(bSpin,4) = rSpin 
+            
               i = i+1
-              slaterIndices(i) = SlaterIndex(set)
+              slaterIndices(i) = SlaterIndex(spinSet)
+              
+            enddo
+          enddo
+        enddo
+      enddo
+      
+    elseif ( CITruncation=='singles-doubles-singlet' ) then
+      !> Singles
+      allocate(spinSet(Nele, 2))
+      spinSet = 0
+      !> go through spin orbitals in pairs
+      do s1 = 1, Nele ,2
+        do s1Promotion = (Nele+1), NeleSpinOrb, 2
+          spinSet(:,1) = unexcitedSpin(:,1)
+          spinSet(:,2) = unexcitedSpin(:,1)
+
+          !> spin up and spin down channels
+          do s2=0,1
+            spinSet(s1+s2,1+s2) = s1Promotion+s2
+          enddo 
+          i = i+1
+          slaterIndices(i) = SlaterIndex(spinSet)
+        enddo
+      enddo
+      deallocate(spinSet)
+ 
+      allocate(spinSet(Nele, 1))
+      spinSet = 0
+      !> Do the double excitation from same space orbital to same space orbital
+      do s1=1,Nele,2
+        do s1Promotion = (Nele+1),NeleSpinOrb,2
+          spinSet(:,1) = unexcitedSpin(:,1)
+          
+          spinSet(s1,1) = s1Promotion
+          spinSet(s1+1,1) = s1Promotion+1
+          
+          i = i+1
+          slaterIndices(i) = SlaterIndex(spinSet)
+        enddo
+      enddo
+      deallocate(spinSet)
+      
+      !> Do the double excitations from same to different
+      allocate(spinSet(Nele, 2))
+      spinSet = 0
+
+      do s1=1,Nele,2
+        !> Promote every other opposite spin electron in the determinant
+        do s2=s1+1,Nele,2
+          !> Write s1Promotion in terms of space Orbitals
+          do s1Promotion = (Nele/2+1),NeleSpatialOrb
+            do s2Promotion=s1Promotion+1,NeleSpatialOrb
+              spinSet(:,1) = unexcitedSpin(:,1)
+              spinSet(:,2) = unexcitedSpin(:,1)
+              
+              !> Map from Space orbitals to spin
+              spinSet(s1,1) = 2*s1Promotion - 1
+              spinSet(s2,1) = 2*s2Promotion
+              spinSet(s1,2) = 2*s2Promotion - 1
+              spinSet(s2,2) = 2*s1Promotion
+              i = i+1
+              slaterIndices(i) = SlaterIndex(spinSet)
             enddo
           enddo
         enddo
       enddo
 
+      !> From Different to same
+      do s1=1,Nele,2
+        !> Promote every other opposite spin electron in the determinant
+        !> Besides The neighboring one which comes from the same space orb.
+        do s2=s1+3,Nele,2
+          !> Write s1Promotion in terms of space Orbitals
+          do s1Promotion = (Nele/2+1),NeleSpatialOrb
+            s2Promotion=s1Promotion
+            spinSet(:,1) = unexcitedSpin(:,1)
+            spinSet(:,2) = unexcitedSpin(:,1)
+            
+            !> Map from Space orbitals to spin
+            spinSet(s1,1) = 2*s1Promotion - 1
+            spinSet(s2,1) = 2*s2Promotion
+            spinSet(s1+1,2) = 2*s2Promotion - 1
+            spinSet(s2-1,2) = 2*s1Promotion
+            i = i+1
+            slaterIndices(i) = SlaterIndex(spinSet)
+          enddo
+        enddo
+      enddo
+
+      deallocate(spinSet)
+
+      !> From different to different A      
+      allocate(spinSet(Nele, 6))
+      spinSet = 0
+      !> do loops over a,b,r,s
+      do a=1,Nele/2
+        !> Promote every other opposite spin electron in the determinant
+        do b=a+1,Nele/2
+          !> Write s Promotions in terms of space Orbitals
+          do r = (Nele/2+1),NeleSpatialOrb
+            do s = r+1,NeleSpatialOrb
+              do j=1,6
+                spinSet(:,j) = unexcitedSpin(:,1)
+              enddo
+              !> ab->rs
+              !> map from space to spin
+              aSpin = 2*a-1
+              bSpin = 2*b-1
+              rSpin = 2*r-1
+              sSpin = 2*s-1
+              
+              spinSet(aSpin,1) = rSpin 
+              spinSet(bSpin,1) = sSpin 
+              
+              !> \bar{ab}->\bar{rs}
+              !> map from space to spin
+              aSpin = 2*a
+              bSpin = 2*b
+              rSpin = 2*r
+              sSpin = 2*s
+              
+              spinSet(aSpin,2) = rSpin 
+              spinSet(bSpin,2) = sSpin 
+              
+              !> \bar{a}b->\bar{s}r
+              !> map from space to spin
+              aSpin = 2*a
+              bSpin = 2*b-1
+              rSpin = 2*r-1
+              sSpin = 2*s
+              
+              spinSet(aSpin,3) = sSpin 
+              spinSet(bSpin,3) = rSpin 
+              
+              !> \bar{a}b->\bar{r}s
+              !> map from space to spin
+              aSpin = 2*a
+              bSpin = 2*b-1
+              rSpin = 2*r
+              sSpin = 2*s-1
+              
+              spinSet(aSpin,4) = rSpin 
+              spinSet(bSpin,4) = sSpin 
+              
+              !> a\bar{b}->r\bar{s}
+              !> map from space to spin
+              aSpin = 2*a-1
+              bSpin = 2*b
+              rSpin = 2*r-1
+              sSpin = 2*s
+              
+              spinSet(aSpin,5) = rSpin 
+              spinSet(bSpin,5) = sSpin 
+              
+              !> a\bar{b}->s\bar{r}
+              !> map from space to spin
+              aSpin = 2*a-1
+              bSpin = 2*b
+              rSpin = 2*r
+              sSpin = 2*s-1
+              
+              spinSet(aSpin,6) = sSpin 
+              spinSet(bSpin,6) = rSpin 
+            
+              i = i+1
+              slaterIndices(i) = SlaterIndex(spinSet)
+              
+            enddo
+          enddo
+        enddo
+      enddo
+      
+      deallocate(spinSet)
+
+      !> From different to different B
+      allocate(spinSet(Nele, 4))
+      spinSet = 0
+      !> do loops over a,b,r,s
+      do a=1,Nele/2
+        !> Promote every other opposite spin electron in the determinant
+        do b=a+1,Nele/2
+          !> Write s Promotions in terms of space Orbitals
+          do r = (Nele/2+1),NeleSpatialOrb
+            do s = r+1,NeleSpatialOrb
+              do j=1,4
+                spinSet(:,j) = unexcitedSpin(:,1)
+              enddo
+              
+              !> \bar{a}b->\bar{s}r
+              !> map from space to spin
+              aSpin = 2*a
+              bSpin = 2*b-1
+              rSpin = 2*r-1
+              sSpin = 2*s
+              
+              spinSet(aSpin,1) = sSpin 
+              spinSet(bSpin,1) = rSpin 
+              
+              !> \bar{a}b->\bar{r}s
+              !> map from space to spin
+              aSpin = 2*a
+              bSpin = 2*b-1
+              rSpin = 2*r
+              sSpin = 2*s-1
+              
+              spinSet(aSpin,2) = rSpin 
+              spinSet(bSpin,2) = sSpin 
+              
+              !> a\bar{b}->r\bar{s}
+              !> map from space to spin
+              aSpin = 2*a-1
+              bSpin = 2*b
+              rSpin = 2*r-1
+              sSpin = 2*s
+              
+              spinSet(aSpin,3) = rSpin 
+              spinSet(bSpin,3) = sSpin 
+              
+              !> a\bar{b}->s\bar{r}
+              !> map from space to spin
+              aSpin = 2*a-1
+              bSpin = 2*b
+              rSpin = 2*r
+              sSpin = 2*s-1
+              
+              spinSet(aSpin,4) = sSpin 
+              spinSet(bSpin,4) = rSpin 
+            
+              i = i+1
+              slaterIndices(i) = SlaterIndex(spinSet)
+              
+            enddo
+          enddo
+        enddo
+      enddo
+    
     endif 
 
   end subroutine populateSlaters

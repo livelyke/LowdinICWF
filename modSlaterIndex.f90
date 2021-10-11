@@ -5,8 +5,10 @@ module modSlaterIndex
 
   !TODO: rewrite to match complete OOP standard
   type SlaterIndex
-    integer, dimension(:), allocatable  ::  spinOrbitals
-    integer, dimension(:), allocatable  ::  spaceOrbitals
+    integer, dimension(:,:), allocatable  ::  spinOrbitals
+    integer, dimension(:,:), allocatable  ::  spaceOrbitals
+    real,    dimension(:),   allocatable  ::  coefs
+    integer                               ::  NConf
   end type SlaterIndex
 
   interface SlaterIndex
@@ -16,38 +18,59 @@ module modSlaterIndex
   contains
   
   type(SlaterIndex) function initSlater(spinOrbitals)
-    integer, dimension(:), intent(in) ::  spinOrbitals
-    integer                           ::  i, Ne
-    Ne = size(spinOrbitals)
-    allocate(initSlater%spinOrbitals(Ne))
-    allocate(initSlater%spaceOrbitals(Ne))
+    integer, dimension(:,:), intent(in) ::  spinOrbitals
+    integer                           ::  i, j, Ne, NConf
+    Ne = size(spinOrbitals,1)
+    NConf = size(spinOrbitals,2)
+    initSlater%NConf = NConf
+    allocate(initSlater%spinOrbitals(Ne,NConf))
+    allocate(initSlater%spaceOrbitals(Ne,NConf))
     
     initSlater%spinOrbitals = spinOrbitals
     do i=1,Ne
-      initSlater%spaceOrbitals(i) = ceiling(spinOrbitals(i)/2.0)
+      do j=1,NConf
+        initSlater%spaceOrbitals(i,j) = ceiling(spinOrbitals(i,j)/2.0)
+      end do
     end do
+
+    allocate(initSlater%coefs(NConf))
+    !> Szabo Table 2.7
+    !> TODO: Make sure the doubles are fed in the correct order
+    if ( NConf == 2 ) then
+      initSlater%coefs = 1.0/sqrt(2.0)
+    elseif ( NConf == 1 ) then
+      initSlater%coefs = 1.0
+    elseif ( NConf == 6 ) then
+      initSlater%coefs(1:2) =  2.0/sqrt(12.0)
+      initSlater%coefs(3)   = -1.0/sqrt(12.0)
+      initSlater%coefs(4:5) =  1.0/sqrt(12.0)
+      initSlater%coefs(6)   = -1.0/sqrt(12.0)
+    elseif ( NConf == 4 ) then
+      initSlater%coefs = 1.0/2.0
+    endif
+    
+
 
   end function initSlater
 
-  subroutine SlaterMaximumCoincidence(slaterIndices, slaterI, slaterIp, Nele, sgn, &
+
+  !> Input two spinOrbital configurations
+  !> output the sgn associated with putting them in maximum coincindence
+  !> output the spin Orbitals which differ as spinOrbI1, spinOrbI2, spinOrbIp1, spinOrbIp2
+
+  subroutine SlaterMaximumCoincidence(spinOrbI, spinOrbIp, sgn, &
                                       numDiffering, spinOrbI1, spinOrbI2, spinOrbIp1, spinOrbIp2)
-    type(SlaterIndex),   intent(in)             ::  slaterIndices(:)
-    integer,           intent(in)               ::  Nele, slaterI, slaterIp
+    integer,           intent(in)               ::  spinOrbI(:), spinOrbIp(:)
     integer,           intent(out)              ::  sgn, numDiffering, spinOrbI1, spinOrbI2, spinOrbIp1, spinOrbIp2
-    integer                                     ::  i, indexLocation, numMatching
+    integer                                     ::  i, indexLocation, numMatching, Nele
     logical                                     ::  firstDiff
-    integer, dimension(:), allocatable          ::  spinOrbIp, spinOrbI, tmpSpin
+    integer, dimension(:), allocatable          ::  tmpSpin
+  
 
-    allocate(spinOrbI(Nele))
-    !allocate(spaceOrbI(Nele))
-    allocate(spinOrbIp(Nele))
-    !allocate(spaceOrbIp(Nele))
+    Nele = size(spinOrbI,1)
+
     allocate(tmpSpin(Nele))
-    spinOrbI    =   slaterIndices(slaterI)%spinOrbitals;
-    !spaceOrbI   =   slaterIndices(slaterI)%spaceOrbitals;
-    spinOrbIp   =   slaterIndices(slaterIp)%spinOrbitals;
-    !spaceOrbIp  =   slaterIndices(slaterIp)%spaceOrbitals;
-
+    tmpSpin = 0
 
     ! scan through slaterIp to see by how many spin indices it differs from slaterI
     numMatching=0
@@ -59,14 +82,6 @@ module modSlaterIndex
     ! We need to report which spin orbitals in slaterI and slaterIp don't match
     numDiffering = Nele - numMatching
    
-    ! The structure of the promotions may help with how to permute indices 
-    ! Recall for spin up and down promotions
-    !do s1 = 1, Nele, 2 
-      !do s1Promotion = (Nele+1), NeleSpinOrb, 2
-        !do s2 = 2, Nele, 2
-          !do s2Promotion = (Nele+2), NeleSpinOrb, 2
-
-    ! can also just sort arrays from smallest to largest . . .
     if(numMatching > (Nele-3)) then !! Only care if we differ by less than 2
 
       tmpSpin = spinOrbIp
@@ -84,10 +99,10 @@ module modSlaterIndex
         endif
       enddo
 
-
       ! |I>  = | ...mn...>
       ! |Ip> = | ...pq...>
 
+      !> Assign the spin Orbitals which are different
       tmpSpin = tmpSpin - spinOrbI 
       firstDiff = .true.
       do i=1, Nele
@@ -109,11 +124,12 @@ module modSlaterIndex
         endif
       enddo
 
-      !print *, "-----------"
+      !print *, ">> has <<"
       !print *, "spinOrbI ", spinOrbI
-      !print *, "spinOrbIp", tmpSpin + spinOrbI
+      !print *, "spinOrbIp", spinOrbIp
       !print *, "spaceOrbI1: ", spaceOrbI1, "spaceOrbI2: ", spaceOrbI2
       !print *, "spaceOrbIp1:", spaceOrbIp1, "spaceOrbIp2:", spaceOrbIp2
+      !print *, ">> with sign = ", sgn, ", numDiffering =",numDiffering,"<<"
       
     else
       sgn=0
@@ -125,6 +141,7 @@ module modSlaterIndex
     endif
 
   end subroutine SlaterMaximumCoincidence
+
 
   
 
