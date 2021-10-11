@@ -6,12 +6,13 @@ module params
   integer, public                         ::  m1=1836,m2=1836, nDim, Nele, NeleSpinOrb, &
                                               NSlater, &
                                               NeleSpatialOrb, &
-                                              NnucOrb=1
-  real, public                            ::  dxn = 0.1, nBoxL = 0.5, nBoxR = 10, mu_n, dt=0.01, dtImag=0.01
+                                              NnucOrb=1, kickDir
+  real, public                            ::  dxn = 0.1, nBoxL = 0.5, nBoxR = 10, &
+                                              mu_n, dt=0.1, dtImag=0.01, finalTime=1000, kappa
   real, allocatable, dimension(:), public ::  nAxis
   character(len=26),public                ::  CITruncation
   type(SlaterIndex), dimension(:), allocatable,public  ::  slaterIndices
-  logical,                      public    ::  debug, electronicOnly
+  logical,                      public    ::  debug, electronicOnly, kick
 
   public :: assignConsts
   contains
@@ -31,13 +32,21 @@ module params
     if(electronicOnly .eqv. .true.) then
       read(1,*) RVal
     endif
+    read(1,*) dt, finalTime
+    read(1,*) kick
+    read(1,*) kappa, kickDir
 
-    print *, "CITruncation ", CITruncation
-    print *, "Nele ", Nele
-    print *, "NeleSpatialOrb ", NeleSpatialOrb
-    print *, "debug ", debug
-    print *, "electronicOnly ", electronicOnly
-    print *, "RVal ", RVal
+    if (debug .eqv. .true.) then
+      print *, "CITruncation    : ", CITruncation
+      print *, "Nele            : ", Nele
+      print *, "NeleSpatialOrb  : ", NeleSpatialOrb
+      print *, "debug           : ", debug
+      print *, "electronicOnly  : ", electronicOnly
+      print *, "RVal            : ", RVal
+      write(*,'(A,F5.3,F5.0)') "dt, finalTime    : ", dt, finalTime
+      print *, "kick            : ", kick
+      print *, "kappa, kickDir  : ", kappa, kickDir
+    endif
 
   end subroutine readInp
   

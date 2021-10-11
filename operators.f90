@@ -9,7 +9,7 @@ module operators
   private
   public    :: setOperators
 
-  real, dimension(:,:), allocatable, public   ::  H
+  real, dimension(:,:), allocatable, public   ::  H, MDx, MDy, MDz
 
   contains
 
@@ -25,7 +25,9 @@ module operators
                                              MVenValsTmp, KDx, KDy, KDz
     real, dimension(:,:,:), allocatable   :: KVen
     real, dimension(:), allocatable       :: eigenVals, VenKernalOp, VenKernalOpTmp, coefsI, coefsIp
-    real                                  :: MTeVal, MVeeVal, MTeValTmp, MVeeValTmp
+    real                                  :: MTeVal, MVeeVal, MTeValTmp, MVeeValTmp, &
+                                             MDxValTmp, MDyValTmp, MDzValTmp, &
+                                             MDxVal, MDyVal, MDzVal
     integer                               :: i, j, m, n, &
                                              slaterI, slaterIp, &
                                              sgn, indexLocation, &
@@ -107,7 +109,7 @@ module operators
     allocate(KDz(NeleSpatialOrb,NeleSpatialOrb))
     KDz = 0
 
-    call readDipole('ks_me_dipole.k1_',KDx,KDy,KDz)   
+    call readDipoles('ks_me_dipole.k1_',KDx,KDy,KDz)   
 
     !>>>>>>>>>>>>>>> Set Hamiltonian Matrix Elements <<<<<<<<<<<<<<<! 
     ! The matrix elements are arranged with the fastest index being the nuclear orbitals
@@ -130,7 +132,9 @@ module operators
     allocate(nucRange(NnucOrb))
     nucRange = (/ (i, i=1,NnucOrb) /)
     allocate(slaterIJ(NnucOrb))
+    slaterIJ = 0
     allocate(slaterIpJp(NnucOrb))
+    slaterIpJp = 0
     allocate(MTn(NSlater*NnucOrb,NSlater*NnucOrb))
     MTn = 0
     allocate(MVnn(NSlater*NnucOrb,NSlater*NnucOrb))
@@ -145,6 +149,12 @@ module operators
     MVenVals = 0
     allocate(MVenValsTmp(NnucOrb,NnucOrb))
     MVenValsTmp = 0
+    allocate(MDx(NSlater*NnucOrb,NSlater*NnucOrb))
+    MDx = 0
+    allocate(MDy(NSlater*NnucOrb,NSlater*NnucOrb))
+    MDy = 0
+    allocate(MDz(NSlater*NnucOrb,NSlater*NnucOrb))
+    MDz = 0
     allocate(VenKernalOp(nDim))
     VenKernalOp = 0
     allocate(VenKernalOpTmp(nDim))
@@ -195,6 +205,9 @@ module operators
         MVeeVal     = 0
         MVenVals    = 0
         VenKernalOp = 0
+        MDxVal      = 0
+        MDyVal      = 0
+        MDzVal      = 0
         
         do i=1,NConfI
           do j=1,NConfIp
@@ -212,22 +225,30 @@ module operators
               MVeeValTmp     = 0
               MVenValsTmp    = 0
               VenKernalOpTmp = 0
+              MDxValTmp      = 0
+              MDyValTmp      = 0
+              MDzValTmp      = 0
             elseif (numDiffering == 2) then
               MVeeValTmp     = 0
             endif
 
             if (numDiffering == 0) then
+              !> Since they're the same, can just pass one of them
+              if (debug .eqv. .true.) then
+                write(*,'(A,I3,A,I1,A,I3,A,I1)') "numDiffering 0, I=", slaterI, ".",i,"  Ip=",slaterIp,".",j
+              endif
               call matrixElementsNull(        &
-                                MTeValTmp, MVeeValTmp, MVenValsTmp, VenKernalOpTmp, &
-                                KTe, KVen, KVee,&
-                                spaceOrbsI(:,i), spinOrbsI(:,i))
+                                MTeValTmp, MVeeValTmp, MVenValsTmp, &
+                                MDxValTmp, MDyValTmp, MDzValTmp, &
+                                VenKernalOpTmp, KTe, KVen, KVee, KDx, KDy, KDz,&
+                                spaceOrbsI(:,i), spinOrbsI(:,i)) 
             elseif (numDiffering == 1) then
               if (debug .eqv. .true.) then
                 write(*,'(A,I3,A,I1,A,I3,A,I1)') "numDiffering 1, I=", slaterI, ".",i,"  Ip=",slaterIp,".",j
               endif
               call matrixElementsOne(        &
-                                MTeValTmp, MVeeValTmp, MVenValsTmp, VenKernalOpTmp, &
-                                KTe, KVen, KVee,&
+                                MTeValTmp, MVeeValTmp, MVenValsTmp, MDxValTmp, MDyValTmp, MDzValTmp, &
+                                VenKernalOpTmp, KTe, KVen, KVee, KDx, KDy, KDz, &
                                 spaceOrbsI(:,i), spinOrbsI(:,i), spaceOrbsIp(:,j),spinOrbsIp(:,j), &
                                 dSpinOrbI1, dSpinOrbIp1)
             elseif (numDiffering == 2) then
@@ -247,14 +268,21 @@ module operators
               MVeeVal     = MVeeVal     + sgn*coefsI(i)*coefsIp(j)*MVeeValTmp
               MVenVals    = MVenVals    + sgn*coefsI(i)*coefsIp(j)*MVenValsTmp
               VenKernalOp = VenKernalOp + sgn*coefsI(i)*coefsIp(j)*VenKernalOpTmp
+              MDxVal      = MDxVal      + sgn*coefsI(i)*coefsIp(j)*MDxValTmp
+              MDyVal      = MDyVal      + sgn*coefsI(i)*coefsIp(j)*MDyValTmp
+              MDzVal      = MDzVal      + sgn*coefsI(i)*coefsIp(j)*MDzValTmp
             elseif (numDiffering == 2) then
               MVeeVal     = MVeeVal     + sgn*coefsI(i)*coefsIp(j)*MVeeValTmp
             endif
           enddo !< configurations of slater Ip
         enddo !< configurations of slater I
 
-        MTe(slaterIJ,slaterIpJp) = MTeVal*IdN; 
+        !TODO: Take matrix elements of nuclear dipole moment here for non homonuclear diatomics
+        MTe(slaterIJ,slaterIpJp)  = MTeVal*IdN; 
         MVee(slaterIJ,slaterIpJp) = MVeeVal*IdN;
+        MDx(slaterIJ,slaterIpJp)  = MDxVal*IdN;
+        MDy(slaterIJ,slaterIpJp)  = MDyVal*IdN;
+        MDz(slaterIJ,slaterIpJp)  = MDzVal*IdN;
         if (.not. electronicOnly) then
           do i=1,NnucOrb
             do j=i,NnucOrb
@@ -295,6 +323,18 @@ module operators
       print *, "MVnn"
       do i=1,NSlater*NnucOrb
         print *, MVnn(i,:)
+      enddo
+      print *, "MDx"
+      do i=1,NSlater*NnucOrb
+        print *, MDx(i,:)
+      enddo
+      print *, "MDy"
+      do i=1,NSlater*NnucOrb
+        print *, MDy(i,:)
+      enddo
+      print *, "MDz"
+      do i=1,NSlater*NnucOrb
+        print *, MDz(i,:)
       enddo
     endif
 
@@ -340,19 +380,27 @@ module operators
   end subroutine setOperators   
 
 
-  subroutine matrixElementsNull(MTeVal, MVeeVal, MVenVals, VenKernalOp, &
-                                KTe, KVen, KVee,&
+  subroutine matrixElementsNull(MTeVal, MVeeVal, MVenVals, MDxVal, MDyVal, MDzVal, &
+                                VenKernalOp, KTe, KVen, KVee, KDx, KDy, KDz,&
                                 spaceOrbsI, spinOrbsI)
 
     real, intent(inout)           :: MTeVal, MVeeVal, MVenVals(:,:), VenKernalOp(:), &
-                                     KTe(:,:), KVen(:,:,:), KVee(:,:)
+                                     KTe(:,:), KVen(:,:,:), KVee(:,:), &
+                                     MDxVal, MDyVal, MDzVal, KDx(:,:), KDy(:,:), KDz(:,:)
     integer, intent(in)           :: spaceOrbsI(:), spinOrbsI(:)
     integer   ::  m, n, im_im, in_in, im_in, in_im
 
     
     do m=1,Nele
+        if (debug .eqv. .true.) then
+          write(*, '(A,I2,I2)') "Adding in K* ",spaceOrbsI(m),spaceOrbsI(m)
+        endif
+
         ! Szabo Table 2.3 Case 1
         MTeVal = MTeVal + KTe(spaceOrbsI(m),spaceOrbsI(m));
+        MDxVal = MDxVal + KDx(spaceOrbsI(m),spaceOrbsI(m));
+        MDyVal = MDyVal + KDy(spaceOrbsI(m),spaceOrbsI(m));
+        MDzVal = MDzVal + KDz(spaceOrbsI(m),spaceOrbsI(m));
         if (electronicOnly) then
           MVenVals = MVenVals + KVen(1,spaceOrbsI(m),spaceOrbsI(m))
         else
@@ -378,13 +426,14 @@ module operators
 
   end subroutine matrixElementsNull
 
-  subroutine matrixElementsOne(MTeVal, MVeeVal, MVenVals, VenKernalOp, &
-                               KTe, KVen, KVee,&
+  subroutine matrixElementsOne(MTeVal, MVeeVal, MVenVals, MDxVal, MDyVal,MDzVal, &
+                               VenKernalOp, KTe, KVen, KVee, KDx, KDy, KDz, &
                                spaceOrbsI, spinOrbsI, spaceOrbsIp, spinOrbsIp, &
                                dSpinOrbI1, dSpinOrbIp1)
 
     real, intent(inout)           :: MTeVal, MVeeVal, MVenVals(:,:), VenKernalOp(:), &
-                                     KTe(:,:), KVen(:,:,:), KVee(:,:)
+                                     KTe(:,:), KVen(:,:,:), KVee(:,:), &
+                                     MDxVal, MDyVal, MDzVal, KDx(:,:), KDy(:,:), KDz(:,:)
     integer, intent(in)           :: spaceOrbsI(:), spinOrbsI(:), spinOrbsIp(:), spaceOrbsIp(:), &
                                      dSpinOrbI1, dSpinOrbIp1
     integer   ::  m, n, im_ip, in_in, im_in, in_ip, dSpaceOrbI1, dSpaceOrbIp1, indexLocation
@@ -398,6 +447,9 @@ module operators
  
     ! Szabo Table 2.3 Case 2
     ! KTe and KVen are symmetric and stored as upper triangular
+    if (debug .eqv. .true.) then
+      write(*, '(A,I2,I2)') "Adding in K* ",dSpaceOrbI1,dSpaceOrbIp1
+    endif
     if( dSpaceOrbI1 > dSpaceOrbIp1 ) then
       MTeVal = KTe(dSpaceOrbIp1,dSpaceOrbI1)
       VenKernalOp = KVen(:,dSpaceOrbIp1, dSpaceOrbI1) 
@@ -405,6 +457,10 @@ module operators
       MTeVal = KTe(dSpaceOrbI1,dSpaceOrbIp1)
       VenKernalOp = KVen(:,dSpaceOrbI1, dSpaceOrbIp1) 
     endif
+
+    MDxVal = KDx(dSpaceOrbI1,dSpaceOrbIp1)
+    MDyVal = KDy(dSpaceOrbI1,dSpaceOrbIp1)
+    MDzVal = KDz(dSpaceOrbI1,dSpaceOrbIp1)
  
     ! Szabo Table 2.4 Case 2
     ! see also 2.148
@@ -695,7 +751,7 @@ module operators
     endif
   end subroutine readVen
 
-  subroutine readDipole(filePath, KDx, KDy, KDz)
+  subroutine readDipoles(filePath, KDx, KDy, KDz)
     character(len=*), intent(in)        :: filePath
     real,             intent(out)     :: KDx(:,:), KDy(:,:), KDz(:,:)
     integer ::  i,j, xfile, yfile, zfile
@@ -736,6 +792,6 @@ module operators
     endif
 
 
-  end subroutine readDipole
+  end subroutine readDipoles
 
 end module operators

@@ -6,9 +6,10 @@ gfortran -c -g -m64 -O3  modSlaterIndex.f90 -o modSlaterIndex.o
 gfortran -c -g -m64 -O3  params.f90 -o params.o
 gfortran -c -g -m64 -O3  -I"${MKLROOT}/include" bases.f90  -o bases.o
 gfortran -c -g -m64 -O3  -I"${MKLROOT}/include" operators.f90  -o operators.o
+gfortran -c -g -m64 -O3  -I"${MKLROOT}/include" saving.f90  -o saving.o
 gfortran -c -g -m64 -O3  -I"${MKLROOT}/include" tdEvolve.f90   -o tdEvolve.o
 gfortran -c -g -m64 -O3  -I"${MKLROOT}/include" main.f90   -o main.o
-gfortran -g -m64   main.o tdEvolve.o bases.o params.o modSlaterIndex.o operators.o  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_gf_lp64.a ${MKLROOT}/lib/intel64/libmkl_sequential.a ${MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -lm -ldl -o main #-L${MKLROOT}/lib/intel64  -lblas -llapack
+gfortran -g -m64   main.o tdEvolve.o bases.o params.o saving.o modSlaterIndex.o operators.o  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_gf_lp64.a ${MKLROOT}/lib/intel64/libmkl_sequential.a ${MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -lm -ldl -o main #-L${MKLROOT}/lib/intel64  -lblas -llapack
 
 #gfortran -c -g -O3  modSlaterIndex.f90 -o modSlaterIndex.o
 #gfortran -c -g -O3  params.f90 -o params.o

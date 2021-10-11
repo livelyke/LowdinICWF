@@ -1,15 +1,16 @@
 program icwf
   use params, only : assignConsts
   use operators, only : setOperators, H
-  use tdEvolve, only : tdEvolveImag
+  use tdEvolve, only : tdEvolveImag, tdEvolveReal, C
 
   implicit none
-  real, allocatable, dimension(:,:) :: KDx, KDy, KDz
   
   call assignConsts()
 
   call setOperators()
 
-  !call tdEvolveImag(H) 
+  call tdEvolveImag(H)
+  
+  !call tdEvolveReal(H,C) 
  
 end program icwf
