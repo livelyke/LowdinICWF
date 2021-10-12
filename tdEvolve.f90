@@ -103,6 +103,8 @@ module tdEvolve
     call diagSymMatrix(Htmp,nEig,eigenVals,eigenVectors)
     if (electronicOnly .eqv. .true.) then
       print *, nAxis(1), eigenVals
+    else
+      print *, eigenVals
     endif
 
     C(:,1) = eigenVectors(:,1)/sum(eigenVectors(:,1)*eigenVectors(:,1))

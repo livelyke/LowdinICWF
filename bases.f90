@@ -2,7 +2,8 @@ module bases
   use params
 
   implicit none (type, external)
-  external    ::  ssyevr
+  real        ::  slamch
+  external    ::  ssyevr, slamch
   private
   public      ::  diagSymMatrix
 
@@ -18,8 +19,9 @@ module bases
     integer                             ::  dimA, lwork, liwork, &
                                             vl, vu, il, iu, info
     integer, dimension(:), allocatable  ::  isuppz
-    real                                ::  abstol=-1.0
+    real                                ::  abstol
 
+    abstol=slamch('S')
     il=1
     iu=nEig
     lwork=-1

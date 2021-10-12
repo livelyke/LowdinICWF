@@ -5,7 +5,7 @@ module operators
   use modSlaterIndex, only  : SlaterIndex, SlaterMaximumCoincidence
 
   implicit none (type, external)
-  external  :: ssyev, sgemm, sgeev, ssyevr, amux
+  external  :: ssyev, sgemm, ssymm
   private
   public    :: setOperators
 
@@ -13,9 +13,6 @@ module operators
 
   contains
 
-  ! TODO: Naming convention here is a bit shit
-  !       replace spaceInd / spinInd with spaceOrb
-  !       change name of dSpaceOrbI1 potentially
   subroutine setOperators()
     integer, dimension(:), allocatable    :: nucRange, slaterIJ, slaterIpJp
     integer, dimension(:,:), allocatable  :: spinOrbsI, spinOrbsIp, spaceOrbsI, spaceOrbsIp
@@ -47,45 +44,58 @@ module operators
     call setNuclearOperators(Tn,nLapl)
 
     !>>>>> Set Nuclear Basis <<<<<!
-    allocate(eigenVals(nNucOrb))
+    allocate(eigenVals(NnucOrb))
     eigenVals=0
-    allocate(chi(nDim,nNucOrb))
+    allocate(chi(nDim,NnucOrb))
     chi = 0
-    call diagSymMatrix(Tn, nNucOrb, eigenVals, chi) 
-    
+    call diagSymMatrix(Tn, NnucOrb, eigenVals, chi) 
+   
     Tn = -(1/(2*dxn**2*mu_n))*nLapl
 
-    do i=1,nNucOrb
+    do i=1,NnucOrb
       chi(:,i) = chi(:,i)/sqrt(sum(chi(:,i)*chi(:,i))*dxn)
     enddo
 
     !>>>>> Nuclear Kernel Matrices <<<<<!
     ! H = Tn + Te + Vee + Vnn + Ven
 
-    allocate(KTn(nNucOrb,nNucOrb))
+    allocate(KTn(NnucOrb,NnucOrb))
     KTn = 0
     allocate(Vnn(nDim,nDim))
     Vnn = 0
-    allocate(KVnn(nNucOrb,nNucOrb))
+    allocate(KVnn(NnucOrb,NnucOrb))
     KVnn = 0
     do i = 1, nDim 
       Vnn(i,i) = 1.0/nAxis(i)
     end do
 
     allocate(tmpMat(nDim,NnucOrb))
-    tmpMat = 0
+    tmpMat = 0.0
     !Calculate Vnn Matrix 
-    call sgemm('N', 'N', nDim, nNucOrb, nDim, 1.0, Vnn, nDim, chi, nDim, 0, tmpMat, nDim)
+    call sgemm('N', 'N', nDim, NnucOrb, nDim, 1.0, Vnn, nDim, chi, nDim, 0.0, tmpMat, nDim)
+    !call ssymm('L', 'U', nDim, NnucOrb, 1.0, Vnn, nDim, chi, nDim, 0, tmpMat, nDim)
     
     !tmpMat is now Vnn*chi
-    call sgemm('T', 'N', nNucOrb, nNucOrb, nDim, dxn, chi, nDim, tmpMat, nDim, 0, KVnn, nNucOrb)
+    call sgemm('T', 'N', NnucOrb, NnucOrb, nDim, dxn, chi, nDim, tmpMat, nDim, 0.0, KVnn, NnucOrb)
     
-    !tmpMat = 0
+    tmpMat = 0.0
     !Calculate VTn Matrix 
-    call sgemm('N', 'N', nDim, nNucOrb, nDim, 1.0, Tn, nDim, chi, nDim, 0, tmpMat, nDim)
+    call sgemm('N', 'N', nDim, NnucOrb, nDim, 1.0, Tn, nDim, chi, nDim, 0.0, tmpMat, nDim)
+    !call ssymm('L', 'U', nDim, NnucOrb, 1.0, Tn, nDim, chi, nDim, 0.0, tmpMat, nDim)
     
     !tmpMat is now Tn*chi
-    call sgemm('T', 'N', nNucOrb, nNucOrb, nDim, dxn, chi, nDim, tmpMat, nDim, 0, KTn, nNucOrb)
+    call sgemm('T', 'N', NnucOrb, NnucOrb, nDim, dxn, chi, nDim, tmpMat, nDim, 0.0, KTn, NnucOrb)
+
+    if (debug) then
+      print *, "KTn is : "
+      do i=1,NnucOrb
+        print *, KTn(i,:)
+      enddo
+      print *, "KVnn is: "
+      do i=1,NnucOrb
+        print *, KVnn(i,:)
+      enddo
+    endif
 
     
     !>>>>>>>>>>>>>>> Load Electronic Information <<<<<<<<<<<<<<<<<!
@@ -155,10 +165,12 @@ module operators
     MDy = 0
     allocate(MDz(NSlater*NnucOrb,NSlater*NnucOrb))
     MDz = 0
-    allocate(VenKernalOp(nDim))
-    VenKernalOp = 0
-    allocate(VenKernalOpTmp(nDim))
-    VenKernalOpTmp = 0
+    if (.not. electronicOnly) then
+      allocate(VenKernalOp(nDim))
+      VenKernalOp = 0
+      allocate(VenKernalOpTmp(nDim))
+      VenKernalOpTmp = 0
+    endif
     allocate(IdN(NnucOrb,NnucOrb)) 
     IdN = 0
     do i=1,NnucOrb
@@ -204,7 +216,9 @@ module operators
         MTeVal      = 0
         MVeeVal     = 0
         MVenVals    = 0
-        VenKernalOp = 0
+        if (.not. electronicOnly) then
+          VenKernalOp = 0
+        endif
         MDxVal      = 0
         MDyVal      = 0
         MDzVal      = 0
@@ -223,11 +237,14 @@ module operators
             if (numDiffering <= 1) then
               MTeValTmp      = 0
               MVeeValTmp     = 0
-              MVenValsTmp    = 0
-              VenKernalOpTmp = 0
               MDxValTmp      = 0
               MDyValTmp      = 0
               MDzValTmp      = 0
+              if (electronicOnly .eqv. .true.) then
+                MVenValsTmp    = 0
+              else
+                VenKernalOpTmp = 0
+              endif
             elseif (numDiffering == 2) then
               MVeeValTmp     = 0
             endif
@@ -266,11 +283,14 @@ module operators
               !> If numDiffering = 0 then MTeValTmp,MVenValsTmp, and VenKernalOpTmp = 0
               MTeVal      = MTeVal      + sgn*coefsI(i)*coefsIp(j)*MTeValTmp
               MVeeVal     = MVeeVal     + sgn*coefsI(i)*coefsIp(j)*MVeeValTmp
-              MVenVals    = MVenVals    + sgn*coefsI(i)*coefsIp(j)*MVenValsTmp
-              VenKernalOp = VenKernalOp + sgn*coefsI(i)*coefsIp(j)*VenKernalOpTmp
               MDxVal      = MDxVal      + sgn*coefsI(i)*coefsIp(j)*MDxValTmp
               MDyVal      = MDyVal      + sgn*coefsI(i)*coefsIp(j)*MDyValTmp
               MDzVal      = MDzVal      + sgn*coefsI(i)*coefsIp(j)*MDzValTmp
+              if (electronicOnly) then
+                MVenVals    = MVenVals    + sgn*coefsI(i)*coefsIp(j)*MVenValsTmp
+              else
+                VenKernalOp = VenKernalOp + sgn*coefsI(i)*coefsIp(j)*VenKernalOpTmp
+              endif
             elseif (numDiffering == 2) then
               MVeeVal     = MVeeVal     + sgn*coefsI(i)*coefsIp(j)*MVeeValTmp
             endif
@@ -284,6 +304,9 @@ module operators
         MDy(slaterIJ,slaterIpJp)  = MDyVal*IdN;
         MDz(slaterIJ,slaterIpJp)  = MDzVal*IdN;
         if (.not. electronicOnly) then
+          if (debug) then
+            print *, "VenKernalOp: ", VenKernalOp
+          endif
           do i=1,NnucOrb
             do j=i,NnucOrb
               MVenVals(i,j) = sum(chi(:,i)*VenKernalOp*chi(:,j))*dxn
@@ -343,6 +366,8 @@ module operators
       H = 0
       H = MTe + MVee + MVen + (Vnn(1,1))*IdE
     else
+      allocate(H(NSlater*NnucOrb,NSlater*NnucOrb))
+      H = 0
       H = MTn + MTe + MVee + MVen + MVnn
     endif
    
@@ -367,8 +392,11 @@ module operators
     deallocate(MTe) 
     deallocate(MVee) 
     deallocate(MVen) 
-    deallocate(MVenVals) 
-    deallocate(VenKernalOp) 
+    deallocate(MVenVals)
+    if (.not. electronicOnly) then 
+      deallocate(VenKernalOp) 
+      deallocate(VenKernalOpTmp)
+    endif 
     deallocate(IdN) 
     deallocate(IdE) 
     deallocate(MVnn) 
@@ -452,10 +480,14 @@ module operators
     endif
     if( dSpaceOrbI1 > dSpaceOrbIp1 ) then
       MTeVal = KTe(dSpaceOrbIp1,dSpaceOrbI1)
-      VenKernalOp = KVen(:,dSpaceOrbIp1, dSpaceOrbI1) 
+      if (.not. electronicOnly) then
+        VenKernalOp = KVen(:,dSpaceOrbIp1, dSpaceOrbI1) 
+      endif
     else
       MTeVal = KTe(dSpaceOrbI1,dSpaceOrbIp1)
-      VenKernalOp = KVen(:,dSpaceOrbI1, dSpaceOrbIp1) 
+      if (.not. electronicOnly) then
+        VenKernalOp = KVen(:,dSpaceOrbI1, dSpaceOrbIp1) 
+      endif
     endif
 
     MDxVal = KDx(dSpaceOrbI1,dSpaceOrbIp1)

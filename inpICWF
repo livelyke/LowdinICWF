@@ -1,9 +1,9 @@
 singles-doubles-singlet
 2
-20
-.false.
+2
 .true.
-1.90
+.false. 1.90
+1
 0.01 10000
 .true.
 0.0001 1
