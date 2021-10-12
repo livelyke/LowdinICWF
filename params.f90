@@ -34,6 +34,10 @@ module params
     read(1,*) kick
     read(1,*) kappa, kickDir
 
+    if (electronicOnly .eqv. .true.) then
+      NnucOrb = 1
+    endif
+
     if (debug .eqv. .true.) then
       print *, "CITruncation    : ", CITruncation
       print *, "Nele            : ", Nele
