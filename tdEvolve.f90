@@ -18,7 +18,7 @@ module tdEvolve
     real, intent(in)      :: H(:,:)
     real, dimension(:,:), allocatable :: CtmpR, CtmpI
     real        :: time
-    integer     :: n, ti
+    integer     :: n, ti, saveInterval
 
     n = size(H,1)
     allocate(CtmpR(n,4))
@@ -28,6 +28,7 @@ module tdEvolve
 
     time=0
     ti=0
+    saveInterval = int(0.5/dt)
     call output(time, H, C, MDx, MDy, MDz, CtmpR, CtmpI)
     if ( kick .eqv. .true.) then
       if (kickDir == 1) then
@@ -44,7 +45,7 @@ module tdEvolve
       call rk4(H, C, dt, CtmpR, CtmpI)
       time = time + dt
       ti = ti+1
-      if ( mod(ti,100) == 0 ) then
+      if ( mod(ti,saveInterval) == 0 ) then
         call output(time, H, C, MDx, MDy, MDz, CtmpR, CtmpI)
       endif
     enddo
@@ -60,6 +61,7 @@ module tdEvolve
     real, dimension(:,:),allocatable  :: eigenVectors, Htmp
     real              ::  Enew,Eold
 
+    print *, "Diagonalizing Hamiltonian"
     n=size(H,1)
     allocate(C(n,2))
     C = 0

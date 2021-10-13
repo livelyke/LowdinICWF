@@ -99,6 +99,7 @@ module operators
 
     
     !>>>>>>>>>>>>>>> Load Electronic Information <<<<<<<<<<<<<<<<<!
+    print *, "Loading Electronic Information"
  
     allocate(KTe(NeleSpatialOrb,NeleSpatialOrb))
     KTe = 0
@@ -124,6 +125,7 @@ module operators
     !>>>>>>>>>>>>>>> Set Hamiltonian Matrix Elements <<<<<<<<<<<<<<<! 
     ! The matrix elements are arranged with the fastest index being the nuclear orbitals
     ! and the slowest index being the slater determinants
+    print *, "Setting Hamiltonian Matrix Elements"
 
     allocate(spinOrbsI(Nele, 6))
     spinOrbsI = 0

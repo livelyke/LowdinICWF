@@ -11,6 +11,6 @@ program icwf
 
   call tdEvolveImag(H)
   
-  !call tdEvolveReal(H,C) 
+  call tdEvolveReal(H,C) 
  
 end program icwf
