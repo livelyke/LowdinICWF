@@ -13,6 +13,7 @@ module params
   character(len=26),public                ::  CITruncation
   type(SlaterIndex), dimension(:), allocatable,public  ::  slaterIndices
   logical,                      public    ::  debug, electronicOnly, kick
+  character(len=256), public              ::  loadPath
 
   public :: assignConsts
   contains
@@ -33,6 +34,8 @@ module params
     read(1,*) dt, finalTime
     read(1,*) kick
     read(1,*) kappa, kickDir
+    read(1,'(A)') loadPath
+    loadPath = trim(loadPath)
 
     if (electronicOnly .eqv. .true.) then
       NnucOrb = 1
@@ -49,6 +52,7 @@ module params
       write(*,'(A,F5.3,A,F6.0)') "dt, finalTime    : ", dt, ", ", finalTime
       print *, "kick            : ", kick
       print *, "kappa, kickDir  : ", kappa, kickDir
+      print *, "loadPath        : ", loadPath
     endif
 
   end subroutine readInp

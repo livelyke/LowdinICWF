@@ -1,6 +1,6 @@
 module operators
   use params, only          : mu_n, dxn, nDim, Nele, NeleSpinOrb, NSlater, NeleSpatialOrb, &
-                              NnucOrb, nAxis, CITruncation, slaterIndices, debug, electronicOnly
+                              NnucOrb, nAxis, CITruncation, slaterIndices, debug, electronicOnly, loadPath
   use bases, only           : diagSymMatrix
   use modSlaterIndex, only  : SlaterIndex, SlaterMaximumCoincidence
 
@@ -103,15 +103,15 @@ module operators
  
     allocate(KTe(NeleSpatialOrb,NeleSpatialOrb))
     KTe = 0
-    call readTe('Te',KTe)
+    call readTe(trim(loadPath)//'Te',KTe)
 
     allocate(KVee(NeleSpatialOrb**2,NeleSpatialOrb**2))
     KVee = 0
-    call readVee('Vee',KVee)
+    call readVee(trim(loadPath)//'Vee',KVee)
 
     allocate(KVen(nDim, NeleSpatialOrb, NeleSpatialOrb))
     KVen = 0
-    call readVen('Ven',KVen)
+    call readVen(trim(loadPath)//'Ven',KVen)
     
     allocate(KDx(NeleSpatialOrb,NeleSpatialOrb))
     KDx = 0
@@ -120,7 +120,7 @@ module operators
     allocate(KDz(NeleSpatialOrb,NeleSpatialOrb))
     KDz = 0
 
-    call readDipoles('ks_me_dipole.k1_',KDx,KDy,KDz)   
+    call readDipoles(trim(loadPath)//'ks_me_dipole.k1_',KDx,KDy,KDz)   
 
     !>>>>>>>>>>>>>>> Set Hamiltonian Matrix Elements <<<<<<<<<<<<<<<! 
     ! The matrix elements are arranged with the fastest index being the nuclear orbitals
