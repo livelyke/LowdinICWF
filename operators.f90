@@ -1,6 +1,7 @@
 module operators
   use params, only          : mu_n, dxn, nDim, Nele, NeleSpinOrb, NSlater, NeleSpatialOrb, &
-                              NnucOrb, nAxis, CITruncation, slaterIndices, debug, electronicOnly, loadPath
+                              NnucOrb, nAxis, CITruncation, slaterIndices, debug, &
+                              electronicOnly, loadPath, finalTime
   use bases, only           : diagSymMatrix
   use modSlaterIndex, only  : SlaterIndex, SlaterMaximumCoincidence
 
@@ -120,7 +121,10 @@ module operators
     allocate(KDz(NeleSpatialOrb,NeleSpatialOrb))
     KDz = 0
 
-    call readDipoles(trim(loadPath)//'ks_me_dipole.k1_',KDx,KDy,KDz)   
+    !TODO: Modify Hamiltonian Constructor to not waste time calculating MDx
+    if (finalTime .ne. 0) then
+      call readDipoles(trim(loadPath)//'ks_me_dipole.k1_',KDx,KDy,KDz)   
+    endif
 
     !>>>>>>>>>>>>>>> Set Hamiltonian Matrix Elements <<<<<<<<<<<<<<<! 
     ! The matrix elements are arranged with the fastest index being the nuclear orbitals

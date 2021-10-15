@@ -1,5 +1,5 @@
 program icwf
-  use params, only : assignConsts
+  use params, only : assignConsts, finalTime
   use operators, only : setOperators, H
   use tdEvolve, only : tdEvolveImag, tdEvolveReal, C
 
@@ -10,7 +10,9 @@ program icwf
   call setOperators()
 
   call tdEvolveImag(H)
-  
-  call tdEvolveReal(H,C) 
+ 
+  if (finalTime .ne. 0) then 
+    call tdEvolveReal(H,C) 
+  endif
  
 end program icwf

@@ -7,7 +7,7 @@ module params
                                               NSlater, &
                                               NeleSpatialOrb, &
                                               NnucOrb, kickDir
-  real, public                            ::  dxn = 0.1, nBoxL = 0.1, nBoxR = 9.00, &
+  real, public                            ::  dxn, nBoxL = 0.1, nBoxR = 9.00, &
                                               mu_n, dt=0.1, dtImag=0.01, finalTime=1000, kappa
   real, allocatable, dimension(:), public ::  nAxis
   character(len=26),public                ::  CITruncation
@@ -30,7 +30,7 @@ module params
     read(1,*) NeleSpatialOrb
     read(1,*) debug
     read(1,*) electronicOnly, RVal
-    read(1,*) NnucOrb
+    read(1,*) NnucOrb, dxn
     read(1,*) dt, finalTime
     read(1,*) kick
     read(1,*) kappa, kickDir
