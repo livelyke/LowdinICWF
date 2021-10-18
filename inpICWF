@@ -1,10 +1,10 @@
 singles-doubles-singlet
 2
-20
+NE
 .false.
 .false. 1.40
-60
-0.05 10000
+NN DXN NBOXL NBOXR
+0.05 0
 .true.
 0.0001 1
-/ptmp/klively/ICWF3D/H2DFT/debug/full/LowdinICWF/
+/ptmp/klively/ICWF3D/H2DFT/debug/full/diabaticLDA/R_1.40/
