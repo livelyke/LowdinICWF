@@ -56,10 +56,11 @@ module tdEvolve
 
   subroutine tdEvolveImag(H)
     real, intent(in)  ::  H(:,:)
-    integer           ::  n, iter, nEig
-    real, dimension(:),allocatable  :: HC, eigenVals
+    integer           ::  n, iter, nEig, i,j
+    real, dimension(:),allocatable  :: HC, eigenVals, Dx, Dy, Dz
     real, dimension(:,:),allocatable  :: eigenVectors, Htmp
     real              ::  Enew,Eold
+    logical           ::  dirExist
 
     print *, "Diagonalizing Hamiltonian"
     n=size(H,1)
@@ -110,7 +111,40 @@ module tdEvolve
     endif
 
     C(:,1) = eigenVectors(:,1)/sum(eigenVectors(:,1)*eigenVectors(:,1))
+    if (electronicOnly .eqv. .true.) then
+      allocate(Dx(nEig), Dy(nEig), Dz(nEig))
+      Dx=0  
+      Dy=0  
+      Dz=0  
+      do n=1,nEig
+        eigenVectors(:,n) = eigenVectors(:,n)/sum(eigenVectors(:,n)*eigenVectors(:,n))
+      enddo
+      do n=1,nEig
+        do j=1,size(eigenVectors,1)
+          Dx(n) = Dx(n) + eigenVectors(j,1)*sum( MDx(j,:)*eigenVectors(:,n) )
+          Dy(n) = Dy(n) + eigenVectors(j,1)*sum( MDy(j,:)*eigenVectors(:,n) )
+          Dz(n) = Dz(n) + eigenVectors(j,1)*sum( MDz(j,:)*eigenVectors(:,n) )
+        enddo
+      enddo
+      inquire (file='MuX.dat', exist=dirExist)
+      if (.not. dirExist) then
+        call execute_command_line('touch MuX.dat')
+        call execute_command_line('touch MuY.dat')
+        call execute_command_line('touch MuZ.dat')
+      endif
+      open(100,file='MuX.dat',status='old')
+      open(101,file='MuY.dat',status='old')
+      open(102,file='MuZ.dat',status='old')
+      write(100,*) nAxis(1), Dx
+      write(101,*) nAxis(1), Dy
+      write(102,*) nAxis(1), Dz
+      close(100)
+      close(101)
+      close(102)
+    endif
+
     deallocate(eigenVals)
+    deallocate(Dx, Dy, Dz)
     deallocate(eigenVectors)
  
   end subroutine
