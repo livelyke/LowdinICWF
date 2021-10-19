@@ -10,14 +10,14 @@ module operators
   private
   public    :: setOperators
 
-  real, dimension(:,:), allocatable, public   ::  H, MDx, MDy, MDz
+  real, dimension(:,:), allocatable, public   ::  H, MDx, MDy, MDz, chi
 
   contains
 
   subroutine setOperators()
     integer, dimension(:), allocatable    :: nucRange, slaterIJ, slaterIpJp
     integer, dimension(:,:), allocatable  :: spinOrbsI, spinOrbsIp, spaceOrbsI, spaceOrbsIp
-    real, dimension(:,:), allocatable     :: chi, Tn, nLapl, Vnn, KTn, KVnn, &
+    real, dimension(:,:), allocatable     :: Tn, nLapl, Vnn, KTn, KVnn, &
                                              IdN, IdE, KTe, KVee, MTn, MTe, MVee, &
                                              MVen, MVnn, tmpMat1, tmpMat2, tmpMat, MVenVals, &
                                              MVenValsTmp, KDx, KDy, KDz
@@ -380,7 +380,6 @@ module operators
     deallocate(Tn) 
     deallocate(nLapl)
     deallocate(eigenVals)
-    deallocate(chi)
     deallocate(KTn) 
     deallocate(Vnn) 
     deallocate(KVnn) 

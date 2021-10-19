@@ -3,7 +3,7 @@ module saving
   external    ::  ssymv 
   private
 
-  public    ::  output
+  public    ::  output, outputNucDen
 
   contains
 
@@ -14,6 +14,7 @@ module saving
     logical             :: dirExist
     integer             :: dipoleFile, energyFile, n, i
     real                :: tmp1, tmp2, tmp3
+    
     if ( time==0 ) then
       inquire (file='output_icwf/dipole.dat', exist=dirExist)
       if (.not. dirExist) then
@@ -80,5 +81,63 @@ module saving
 
 
   end subroutine output
+
+  subroutine outputNucDen(time,C,chi, nAxis)
+    real, intent(in)  ::  C(:,:), chi(:,:), time, nAxis(:)
+    real, dimension(:), allocatable :: nucDen
+    integer, dimension(:), allocatable :: nucRange, slaterIJ, slaterIJp
+    integer               ::  i,j,jp, NSlater, Nnuc, nDim
+    logical               :: dirExist
+
+    Nnuc    = size(chi,2)
+    NSlater = size(C,1)/Nnuc
+    nDim    = size(chi,1)
+
+    allocate(nucDen(nDim))
+    nucDen = 0
+
+    allocate(nucRange(Nnuc))
+    nucRange = (/ (i, i=1,Nnuc) /)
+    allocate(slaterIJ(Nnuc))
+    slaterIJ = 0
+    allocate(slaterIJp(Nnuc))
+    slaterIJp = 0
+    
+    do i=1,NSlater
+      slaterIJ = nucRange + Nnuc*(i-1)
+      slaterIJp = nucRange + Nnuc*(i-1)
+      
+      !> C^*_{IJ'}C_{IJ}\chi_{J'}chi_J
+      do j=1,Nnuc
+        do jp=1,Nnuc
+          nucDen = nucDen + sum(C(slaterIJp(jp),:)*C(slaterIJ(j),:)) &
+                          *chi(:,j)*chi(:,jp)
+        enddo
+      enddo
+    enddo
+
+    if ( time==0 ) then
+      inquire (file='output_icwf/nucDen.dat', exist=dirExist)
+      if (.not. dirExist) then
+        call execute_command_line('mkdir -p output_icwf')
+        call execute_command_line('touch output_icwf/nucDen.dat')
+      endif
+      open(100,file='output_icwf/nucDen.dat', status='old')
+      do i=1,Nnuc
+        write(100,*) nAxis(i), nucDen(i)
+      enddo
+      close(100)
+    else
+      open(100,file='output_icwf/tmp.dat', status='new')
+      do i=1,nDim
+        write(100,*) nucDen(i)
+      enddo
+      call execute_command_line('paste output_icwf/nucDen.dat output_icwf/tmp.dat > output_icwf/nucDen.dat')
+      close(100)
+      call execute_command_line('rm output_icwf/tmp.dat')
+      
+    endif
+
+  end subroutine outputNucDen
 
 end module saving

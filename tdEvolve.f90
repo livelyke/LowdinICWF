@@ -2,8 +2,8 @@ module tdEvolve
   use params,     only : NSlater,NnucOrb, dtImag, dt, electronicOnly, &
                          nAxis, debug, finalTime, kick, kickDir, kappa
   use bases,      only : diagSymMatrix
-  use saving,     only : output
-  use operators,  only : MDx, MDy, MDz
+  use saving,     only : output, outputNucDen
+  use operators,  only : MDx, MDy, MDz, chi
   implicit none (type, external)
   external    ::  ssymv 
   private
@@ -59,7 +59,7 @@ module tdEvolve
     integer           ::  n, iter, nEig, i,j
     real, dimension(:),allocatable  :: HC, eigenVals, Dx, Dy, Dz
     real, dimension(:,:),allocatable  :: eigenVectors, Htmp
-    real              ::  Enew,Eold
+    real              ::  Enew,Eold, time=0
     logical           ::  dirExist
 
     print *, "Diagonalizing Hamiltonian"
@@ -142,10 +142,12 @@ module tdEvolve
       close(101)
       close(102)
     endif
+    
+    call outputNucDen(time,C,chi,nAxis)
 
     deallocate(eigenVals)
-    deallocate(Dx, Dy, Dz)
     deallocate(eigenVectors)
+    if(allocated(Dx)) deallocate(Dx, Dy, Dz)
  
   end subroutine
 
